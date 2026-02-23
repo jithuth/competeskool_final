@@ -4,19 +4,38 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EvaluateDialog } from "@/components/dashboard/evaluate/EvaluateDialog";
-import { Search, Filter } from "lucide-react";
+import { Search, Filter, ExternalLink, Eye } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import Link from "next/link";
 
 export default async function EvaluatePage() {
     const supabase = await createClient();
-    const { data: submissions } = await supabase
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("role, school_id")
+        .eq("id", user?.id)
+        .single();
+
+    let query = supabase
         .from("submissions")
         .select(`
-      *,
-      events (title),
-      profiles (full_name, school_id),
-      submission_videos (*)
-    `)
+          *,
+          events (title),
+          profiles!inner (full_name, school_id),
+          submission_videos (*)
+        `);
+
+    if (profile?.role === 'teacher') {
+        const { data: studentIds } = await supabase.from('students').select('id').eq('teacher_id', user?.id);
+        const ids = studentIds?.map(s => s.id) || [];
+        query = query.in('student_id', ids);
+    } else if (profile?.role === 'school_admin') {
+        query = query.eq('profiles.school_id', profile.school_id);
+    }
+
+    const { data: submissions } = await query
         .order("status", { ascending: false }) // Show pending first
         .order("created_at", { ascending: false });
 
@@ -66,11 +85,16 @@ export default async function EvaluatePage() {
                                     <TableCell className="font-bold">
                                         {sub.score !== null ? `${sub.score}/100` : "-"}
                                     </TableCell>
-                                    <TableCell className="text-right">
+                                    <TableCell className="text-right flex items-center justify-end gap-2">
+                                        <Link href={`/dashboard/submissions/${sub.id}`}>
+                                            <Button variant="ghost" size="sm" className="h-8 gap-1 font-bold uppercase text-[9px] tracking-widest">
+                                                <Eye className="w-3.5 h-3.5" /> View
+                                            </Button>
+                                        </Link>
                                         <Dialog>
                                             <DialogTrigger asChild>
-                                                <Button variant={sub.status === 'pending' ? 'default' : 'outline'} size="sm">
-                                                    {sub.status === 'pending' ? 'Evaluate' : 'Edit Score'}
+                                                <Button variant={sub.status === 'pending' ? 'default' : 'outline'} size="sm" className="h-8">
+                                                    {sub.status === 'pending' ? 'Score' : 'Edit'}
                                                 </Button>
                                             </DialogTrigger>
                                             <DialogContent className="max-w-3xl overflow-y-auto max-h-[90vh]">

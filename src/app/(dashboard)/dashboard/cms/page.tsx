@@ -1,76 +1,105 @@
 import { createClient } from "@/lib/supabase/server";
-import { CMSForm } from "@/components/dashboard/cms/CMSForm";
 import { redirect } from "next/navigation";
-import {
-    Globe,
-    Settings2,
-    Monitor,
-    Search,
-    Layout,
-    Share2
-} from "lucide-react";
+import { Globe, ArrowRight, Settings, Image as ImageIcon, Layout } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function CMSPage() {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    // Check if user is super_admin
+    if (!user) redirect("/login");
+
     const { data: profile } = await supabase
         .from("profiles")
         .select("role")
-        .eq("id", user?.id)
+        .eq("id", user.id)
         .single();
 
-    if (profile?.role !== 'super_admin') {
-        redirect("/dashboard");
-    }
-
-    // Fetch existing settings and SEO configs
-    const { data: settings } = await supabase
-        .from("site_settings")
-        .select("*")
-        .order("category");
-
-    const { data: seoConfigs } = await supabase
-        .from("seo_configs")
-        .select("*")
-        .order("page_path");
+    if (profile?.role !== 'super_admin') redirect("/dashboard");
 
     return (
-        <div className="space-y-10 pb-20">
-            {/* Header */}
-            <div className="relative overflow-hidden rounded-[2.5rem] bg-slate-950 p-12 text-white shadow-2xl">
-                <div className="absolute top-0 right-0 w-1/3 h-full bg-gradient-to-l from-primary/20 to-transparent blur-3xl" />
-                <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8 text-center md:text-left">
-                    <div className="space-y-4">
-                        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/20 text-primary-foreground border border-primary/30 text-xs font-bold uppercase tracking-widest">
-                            <Settings2 className="w-4 h-4" />
-                            <span>System Control</span>
-                        </div>
-                        <h1 className="text-4xl md:text-5xl font-black font-outfit leading-tight">
-                            Frontend <span className="text-primary italic">Management</span>
-                        </h1>
-                        <p className="text-slate-400 max-w-xl text-lg font-light leading-relaxed">
-                            Control the global narrative, visual assets, and SEO performance of the CompeteEdu India platform.
-                        </p>
-                    </div>
-                    <div className="flex flex-wrap justify-center gap-4">
-                        <div className="p-6 rounded-[2rem] bg-white/5 border border-white/10 text-center space-y-2 backdrop-blur-md">
-                            <Monitor className="w-8 h-8 text-primary mx-auto" />
-                            <div className="text-2xl font-black font-outfit">Active</div>
-                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">CMS Engine</div>
-                        </div>
-                        <div className="p-6 rounded-[2rem] bg-white/5 border border-white/10 text-center space-y-2 backdrop-blur-md">
-                            <Share2 className="w-8 h-8 text-emerald-500 mx-auto" />
-                            <div className="text-2xl font-black font-outfit">Sitemap</div>
-                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Live Indexing</div>
-                        </div>
-                    </div>
+        <div className="max-w-6xl mx-auto space-y-10 animate-in fade-in duration-700 pb-10">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="space-y-2">
+                    <h1 className="text-4xl font-black font-outfit uppercase tracking-tight text-slate-900">
+                        Site <span className="text-primary italic">Management</span>
+                    </h1>
+                    <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.2em] ml-1">
+                        Configure institutional branding and content frameworks
+                    </p>
                 </div>
             </div>
 
-            {/* CMS Interface */}
-            <CMSForm initialSettings={settings || []} initialSeo={seoConfigs || []} />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <Card className="rounded-[2.5rem] border-2 hover:border-primary/20 transition-all group overflow-hidden bg-white">
+                    <CardHeader className="p-8">
+                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 mb-4 group-hover:scale-110 transition-transform">
+                            <Settings className="w-6 h-6" />
+                        </div>
+                        <CardTitle className="text-xl font-black font-outfit uppercase">Branding & Identity</CardTitle>
+                        <CardDescription className="font-medium text-slate-500">
+                            Update platform name, official logo, and global identity settings.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="px-8 pb-8">
+                        <Button asChild className="w-full h-12 rounded-xl bg-slate-950 hover:bg-primary font-bold uppercase tracking-widest text-[9px] gap-2">
+                            <Link href="/dashboard/settings?tab=system">
+                                Configure Identity <ArrowRight className="w-4 h-4" />
+                            </Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+
+                <Card className="rounded-[2.5rem] border-2 hover:border-emerald-200/50 transition-all group overflow-hidden bg-white">
+                    <CardHeader className="p-8">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 mb-4 group-hover:scale-110 transition-transform">
+                            <Layout className="w-6 h-6" />
+                        </div>
+                        <CardTitle className="text-xl font-black font-outfit uppercase">Home Framework</CardTitle>
+                        <CardDescription className="font-medium text-slate-500">
+                            Manage hero sections, subtitles, and introductory media content.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="px-8 pb-8">
+                        <Button asChild className="w-full h-12 rounded-xl bg-slate-950 hover:bg-emerald-600 font-bold uppercase tracking-widest text-[9px] gap-2">
+                            <Link href="/dashboard/settings?tab=system">
+                                Manage Framework <ArrowRight className="w-4 h-4" />
+                            </Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+
+                <Card className="rounded-[2.5rem] border-2 hover:border-amber-200/50 transition-all group overflow-hidden bg-white">
+                    <CardHeader className="p-8">
+                        <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600 mb-4 group-hover:scale-110 transition-transform">
+                            <Globe className="w-6 h-6" />
+                        </div>
+                        <CardTitle className="text-xl font-black font-outfit uppercase">SEO Control</CardTitle>
+                        <CardDescription className="font-medium text-slate-500">
+                            Optimize meta tags, descriptions, and keywords for search indexers.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="px-8 pb-8">
+                        <Button asChild className="w-full h-12 rounded-xl bg-slate-950 hover:bg-amber-600 font-bold uppercase tracking-widest text-[9px] gap-2">
+                            <Link href="/dashboard/settings?tab=system">
+                                Optimize Presence <ArrowRight className="w-4 h-4" />
+                            </Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+            </div>
+
+            <div className="p-12 rounded-[3.5rem] bg-slate-950 text-white relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-1/3 h-full bg-gradient-to-l from-primary/20 to-transparent blur-3xl" />
+                <div className="relative z-10 space-y-4 max-w-xl">
+                    <h2 className="text-3xl font-black font-outfit leading-tight uppercase">System <span className="text-primary italic">Notice</span></h2>
+                    <p className="text-slate-400 font-medium leading-relaxed">
+                        Institutional branding changes are universal. Updating the site title or logo will affect all user portals and communications across the entire framework.
+                    </p>
+                </div>
+            </div>
         </div>
     );
 }

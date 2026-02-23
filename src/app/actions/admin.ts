@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-
+import { revalidatePath } from "next/cache";
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 
@@ -187,3 +187,35 @@ export async function saveUserProfileAction(data: any) {
 
     return { success: true };
 }
+
+export async function saveSystemSettingsAction(settings: Record<string, string>) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { error: "Unauthorized" };
+
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (profile?.role !== 'super_admin') return { error: "Insufficient permissions" };
+
+    const adminSupabase = createSupabaseClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const updates = Object.entries(settings).map(([key, value]) => ({
+        key,
+        value
+    }));
+
+    const { error } = await adminSupabase
+        .from('site_settings')
+        .upsert(updates, { onConflict: 'key' });
+
+    if (error) return { error: error.message };
+
+    revalidatePath("/", "layout");
+    revalidatePath("/dashboard", "layout");
+
+    return { success: true };
+}
+

@@ -69,7 +69,7 @@ const navItems: NavItem[] = [
         category: "MANAGEMENT"
     },
     {
-        title: "My Submissions",
+        title: "Active Events",
         href: "/dashboard/my-submissions",
         icon: Video,
         roles: ["student"],
@@ -83,18 +83,18 @@ const navItems: NavItem[] = [
         category: "PARTICIPATION"
     },
     {
+        title: "Submission Registry",
+        href: "/dashboard/submissions",
+        icon: Newspaper,
+        roles: ["super_admin", "school_admin", "teacher", "student", "judge"],
+        category: "PARTICIPATION"
+    },
+    {
         title: "Judges",
         href: "/dashboard/judges",
         icon: UserCheck,
         roles: ["super_admin"],
         category: "MANAGEMENT"
-    },
-    {
-        title: "Rankings",
-        href: "/dashboard/rankings",
-        icon: Trophy,
-        roles: ["super_admin", "school_admin", "teacher", "student", "judge"],
-        category: "MAIN"
     },
     {
         title: "News",
@@ -111,13 +111,6 @@ const navItems: NavItem[] = [
         category: "CONTENT"
     },
     {
-        title: "Profile",
-        href: "/dashboard/profile",
-        icon: UserCheck,
-        roles: ["super_admin", "school_admin", "teacher", "student", "judge"],
-        category: "MAIN"
-    },
-    {
         title: "Settings",
         href: "/dashboard/settings",
         icon: Settings,
@@ -131,11 +124,14 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
-export function Sidebar({ role }: { role: UserRole }) {
+export function Sidebar({ role, siteSettings }: { role: UserRole, siteSettings?: Record<string, string> }) {
     const pathname = usePathname();
     const router = useRouter();
     const supabase = createClient();
     const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+    const siteTitle = siteSettings?.site_title || "CompeteEdu";
+    const siteLogo = siteSettings?.site_logo;
 
     const handleLogout = async () => {
         setIsLoggingOut(true);
@@ -163,11 +159,17 @@ export function Sidebar({ role }: { role: UserRole }) {
 
             <div className="p-8 pt-10">
                 <Link href="/" className="flex items-center space-x-3 group">
-                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 group-hover:scale-110 transition-transform">
-                        <Sparkles className="w-6 h-6 text-white" />
+                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 group-hover:scale-110 transition-transform overflow-hidden p-1">
+                        {siteLogo ? (
+                            <img src={siteLogo} alt="Logo" className="w-full h-full object-contain" />
+                        ) : (
+                            <Sparkles className="w-6 h-6 text-white" />
+                        )}
                     </div>
                     <span className="font-black text-2xl font-outfit tracking-tighter">
-                        Compete<span className="text-indigo-400">Edu</span>
+                        {siteTitle === "CompeteEdu" ? (
+                            <>Compete<span className="text-indigo-400">Edu</span></>
+                        ) : siteTitle}
                     </span>
                 </Link>
             </div>

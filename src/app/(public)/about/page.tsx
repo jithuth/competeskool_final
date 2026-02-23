@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Star, Shield, Zap, Heart, Globe, Award, Users } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { getSeoConfig } from "@/lib/cms";
+import { getSeoConfig, getSiteSettings } from "@/lib/cms";
 import { Metadata } from "next";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -11,7 +11,10 @@ export async function generateMetadata(): Promise<Metadata> {
     return { title: seo.title, description: seo.description };
 }
 
-export default function AboutPage() {
+export default async function AboutPage() {
+    const settings = await getSiteSettings();
+    const siteTitle = settings?.site_title || "CompeteEdu";
+
     return (
         <div className="flex flex-col gap-32 pb-32 bg-[#080B1A]">
             {/* Editorial Mission Statement */}
@@ -29,7 +32,7 @@ export default function AboutPage() {
                             <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-indigo-400 italic">Indian Talent</span>
                         </h1>
                         <p className="text-xl text-slate-400 font-medium leading-relaxed max-w-3xl mx-auto drop-shadow-sm">
-                            CompeteEdu was established as a national educational platform dedicated to the discovery and promotion of student excellence. We provide a transparent framework for students to showcase their mastery on a national stage.
+                            {siteTitle} was established as a national educational platform dedicated to the discovery and promotion of student excellence. We provide a transparent framework for students to showcase their mastery on a national stage.
                         </p>
                     </div>
 

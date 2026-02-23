@@ -23,6 +23,8 @@ export default async function TeachersPage() {
         redirect("/dashboard");
     }
 
+    const schoolId = profile?.school_id;
+
     let query = supabase
         .from("profiles")
         .select(`
@@ -31,26 +33,38 @@ export default async function TeachersPage() {
           email,
           status,
           created_at,
+          school_id,
           schools (name),
           teachers (class_section)
         `)
         .eq("role", "teacher");
 
     if (profile.role === 'school_admin') {
-        query = query.eq("school_id", profile.school_id);
+        if (!schoolId) {
+            console.error("School Admin has no school_id!");
+            // return <div>Error: School Admin profile is missing institution link.</div>;
+        } else {
+            query = query.eq("school_id", schoolId);
+        }
     }
 
-    const { data: teachers } = await query;
+    const { data: teachers, error: fetchError } = await query;
+    if (fetchError) {
+        console.error("Error fetching teachers:", fetchError);
+    }
 
-    const formattedTeachers = teachers?.map((t: any) => ({
-        id: t.id,
-        full_name: t.full_name,
-        email: t.email,
-        status: t.status,
-        created_at: t.created_at,
-        school_name: t.schools?.name || "N/A",
-        class_section: Array.isArray(t.teachers) ? t.teachers[0]?.class_section || "" : t.teachers?.class_section || "",
-    })) || [];
+    const formattedTeachers = teachers?.map((t: any) => {
+        const teacherData = Array.isArray(t.teachers) ? t.teachers[0] : t.teachers;
+        return {
+            id: t.id,
+            full_name: t.full_name,
+            email: t.email,
+            status: t.status,
+            created_at: t.created_at,
+            school_name: t.schools?.name || "N/A",
+            class_section: teacherData?.class_section || "N/A",
+        };
+    }) || [];
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">

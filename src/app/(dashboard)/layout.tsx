@@ -7,6 +7,7 @@ import { Bell, Hexagon, Command, Search, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { NotificationBell } from "@/components/dashboard/NotificationBell";
+import { getSiteSettings } from "@/lib/cms";
 
 export default async function DashboardLayout({
     children,
@@ -26,11 +27,12 @@ export default async function DashboardLayout({
         .eq("id", user.id)
         .single();
 
+    const siteSettings = await getSiteSettings();
     const role = (profile?.role || "student") as UserRole;
 
     return (
         <div className="flex h-screen overflow-hidden bg-[#f4f6f9]">
-            <Sidebar role={role} />
+            <Sidebar role={role} siteSettings={siteSettings} />
             <div className="flex-1 flex flex-col overflow-hidden relative">
                 {/* Decorative Background Blob */}
                 <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-50/50 rounded-full blur-3xl -z-10 -translate-y-1/2 translate-x-1/2" />

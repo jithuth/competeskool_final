@@ -6,9 +6,13 @@ import { SchoolSettings } from "@/components/dashboard/settings/SchoolSettings";
 import { TeacherSettings } from "@/components/dashboard/settings/TeacherSettings";
 import { StudentSettings } from "@/components/dashboard/settings/StudentSettings";
 import { GeneralProfileSettings } from "@/components/dashboard/settings/GeneralProfileSettings";
+import { SystemSettings } from "@/components/dashboard/settings/SystemSettings";
+import { getSiteSettings } from "@/lib/cms";
 import { User, Settings as SettingsIcon, ShieldIcon } from "lucide-react";
 
-export default async function SettingsPage() {
+export default async function SettingsPage(props: { searchParams: Promise<{ tab?: string }> }) {
+    const searchParams = await props.searchParams;
+    const defaultTab = searchParams.tab || "profile";
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -21,6 +25,8 @@ export default async function SettingsPage() {
         .single();
 
     if (!profile) redirect("/dashboard");
+
+    const siteSettings = await getSiteSettings();
 
     // Fetch Role Specific Data
     let roleData = null;
@@ -42,7 +48,7 @@ export default async function SettingsPage() {
                 <p className="text-slate-500 font-medium">Manage your profile, security, and application preferences.</p>
             </div>
 
-            <Tabs defaultValue="profile" className="w-full">
+            <Tabs defaultValue={defaultTab} className="w-full">
                 <div className="flex justify-start mb-8 overflow-x-auto pb-2 custom-scrollbar">
                     <TabsList className="bg-slate-100 p-1.5 rounded-2xl h-auto">
                         <TabsTrigger
@@ -74,17 +80,6 @@ export default async function SettingsPage() {
                         {profile.role === 'school_admin' && <SchoolSettings initialData={roleData} />}
                         {profile.role === 'teacher' && <TeacherSettings initialData={roleData} profileId={profile.id} />}
                         {profile.role === 'student' && <StudentSettings initialData={roleData} profileId={profile.id} />}
-                        {profile.role === 'super_admin' && (
-                            <div className="text-center py-20 space-y-4">
-                                <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto">
-                                    <SettingsIcon className="w-10 h-10 text-slate-300" />
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-black font-outfit uppercase">Global Configuration</h3>
-                                    <p className="text-slate-500 max-w-sm mx-auto">Global system settings are under maintenance and will be available soon.</p>
-                                </div>
-                            </div>
-                        )}
                     </TabsContent>
 
                     <TabsContent value="security" className="mt-0">
@@ -92,8 +87,12 @@ export default async function SettingsPage() {
                     </TabsContent>
 
                     {profile.role === 'super_admin' && (
-                        <TabsContent value="system" className="mt-0 text-center py-20">
-                            <p className="text-slate-400 font-bold uppercase tracking-widest text-sm italic">System Preferences Module Loading...</p>
+                        <TabsContent value="system" className="mt-0 space-y-8 animate-in zoom-in-95 duration-500">
+                            <div className="border-b pb-6">
+                                <h2 className="text-2xl font-black font-outfit uppercase tracking-tight">Global System Settings</h2>
+                                <p className="text-slate-500 font-medium text-sm mt-1">Configure platform-wide branding and institutional preferences.</p>
+                            </div>
+                            <SystemSettings settings={siteSettings} />
                         </TabsContent>
                     )}
                 </div>
@@ -101,3 +100,4 @@ export default async function SettingsPage() {
         </div>
     );
 }
+

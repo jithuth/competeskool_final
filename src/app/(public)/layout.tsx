@@ -38,26 +38,33 @@ export default async function PublicLayout({
         role = profile?.role;
     }
 
+    const siteTitle = settings?.site_title || "CompeteEdu";
+    const siteLogo = settings?.site_logo;
+
     return (
         <div className="flex flex-col min-h-screen bg-background">
             {/* Centered Header */}
-            {/* ... rest of header ... */}
             <header className="w-full border-b bg-white/95 backdrop-blur-md border-slate-200 relative z-50 shadow-sm">
                 <div className="container mx-auto px-6 py-6 flex flex-col md:flex-row items-center justify-between gap-6">
                     {/* Brand Logo */}
                     <Link href="/" className="group flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20 group-hover:rotate-12 transition-transform">
-                            <GraduationCap className="w-7 h-7 text-white" />
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center group-hover:rotate-12 transition-transform overflow-hidden ${siteLogo ? 'bg-transparent p-0.5' : 'bg-slate-900 shadow-lg p-1'}`}>
+                            {siteLogo ? (
+                                <img src={siteLogo} alt="Logo" className="w-full h-full object-contain rounded-2xl" />
+                            ) : (
+                                <GraduationCap className="w-7 h-7 text-white" />
+                            )}
                         </div>
                         <div className="flex flex-col">
                             <span className="text-2xl font-black font-outfit uppercase tracking-[0.2em] text-slate-900 leading-none">
-                                CompeteEdu
+                                {siteTitle}
                             </span>
                             <span className="text-[9px] font-black uppercase tracking-[0.4em] text-primary mt-1">
                                 Excellence in Education
                             </span>
                         </div>
                     </Link>
+                    {/* ... nav remains the same ... */}
 
                     {/* Centered Navigation */}
                     <nav className="flex flex-wrap justify-center items-center gap-x-8 gap-y-4">
@@ -130,11 +137,15 @@ export default async function PublicLayout({
                         {/* Branding Col */}
                         <div className="space-y-6">
                             <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
-                                    <GraduationCap className="w-5 h-5 text-primary" />
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden ${siteLogo ? 'bg-transparent' : 'bg-slate-900 p-1'}`}>
+                                    {siteLogo ? (
+                                        <img src={siteLogo} alt="Logo" className="w-full h-full object-contain rounded-xl" />
+                                    ) : (
+                                        <GraduationCap className="w-5 h-5 text-white" />
+                                    )}
                                 </div>
                                 <span className="text-xl font-black font-outfit uppercase tracking-widest text-slate-900">
-                                    CompeteEdu
+                                    {siteTitle}
                                 </span>
                             </div>
                             <p className="text-sm text-slate-500 leading-relaxed font-medium">

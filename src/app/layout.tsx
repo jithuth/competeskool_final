@@ -13,10 +13,21 @@ const outfit = Outfit({
   variable: "--font-outfit",
 });
 
-export const metadata: Metadata = {
-  title: "School Competition Platform",
-  description: "A premium platform for school competitions and talent showcase.",
-};
+import { getSiteSettings } from "@/lib/cms";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getSiteSettings();
+  const siteTitle = settings?.site_title || "CompeteEdu";
+
+  return {
+    title: {
+      default: siteTitle,
+      template: `%s | ${siteTitle}`,
+    },
+    description: "A premium platform for school competitions and talent showcase.",
+    icons: settings?.site_logo ? [settings.site_logo] : ["/favicon.ico"],
+  };
+}
 
 export default function RootLayout({
   children,

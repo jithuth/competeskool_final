@@ -18,6 +18,10 @@ import {
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { SubmissionsTable } from "@/components/dashboard/submissions/SubmissionsTable";
+import { SubmissionWizard } from "@/components/dashboard/submissions/SubmissionWizard";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Rocket, Target, Sparkles, ExternalLink } from "lucide-react";
 
 export default async function DashboardPage() {
     const supabase = await createClient();
@@ -61,10 +65,39 @@ export default async function DashboardPage() {
             .select('id, profiles!student_id(school_id)', { count: 'exact', head: true })
             .eq('profiles.school_id', schoolId);
         submissionsCount = count || 0;
+    } else if (profile?.role === 'student') {
+        const { count } = await supabase.from('submissions').select('id', { count: 'exact', head: true }).eq('student_id', user?.id);
+        submissionsCount = count || 0;
     } else {
         const { count } = await supabase.from('submissions').select('id', { count: 'exact', head: true });
         submissionsCount = count || 0;
     }
+
+    // Fetch Active Events & Submissions for the Table
+    const { data: activeEvents } = await supabase
+        .from('events')
+        .select('*')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+
+    let submissionsQuery = supabase
+        .from('submissions')
+        .select('*, events(title), profiles(full_name)')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+    if (profile?.role === 'student') {
+        submissionsQuery = submissionsQuery.eq('student_id', user?.id);
+    } else if (isSchoolAdmin) {
+        submissionsQuery = submissionsQuery.eq('profiles.school_id', schoolId);
+    } else if (profile?.role === 'teacher') {
+        // Find students assigned to this teacher
+        const { data: studentIds } = await supabase.from('students').select('id').eq('teacher_id', user?.id);
+        const ids = studentIds?.map(s => s.id) || [];
+        submissionsQuery = submissionsQuery.in('student_id', ids);
+    }
+
+    const { data: recentSubmissions } = await submissionsQuery;
 
     const stats = [
         {
@@ -117,9 +150,9 @@ export default async function DashboardPage() {
             bg: "bg-rose-600",
             lightBg: "bg-rose-500/10",
             gradient: "from-rose-600 to-rose-400",
-            trend: isSchoolAdmin ? "From School" : "+24 today",
-            desc: "Student Projects",
-            link: isSchoolAdmin ? "/dashboard/submissions" : "/dashboard/my-submissions"
+            trend: isSchoolAdmin || profile?.role === 'teacher' ? "Institutional" : "+24 today",
+            desc: profile?.role === 'student' ? "Your Entries" : "Student Projects",
+            link: profile?.role === 'student' ? "/dashboard/my-submissions" : "/dashboard/evaluate"
         },
     ];
 
@@ -149,7 +182,9 @@ export default async function DashboardPage() {
                         <p className="text-slate-400 max-w-md text-lg font-light leading-relaxed">
                             {isSuperAdmin
                                 ? "Your global educational ecosystem is thriving. Monitor performance and manage institutional growth here."
-                                : `Managing excellence at ${profile?.schools?.name || "your institution"}.`}
+                                : profile?.role === 'student'
+                                    ? "Your journey to excellence continues. Ready to tackle a new challenge today?"
+                                    : `Managing excellence at ${profile?.schools?.name || "your institution"}.`}
                         </p>
                     </div>
                     <div className="flex flex-wrap gap-3">
@@ -194,6 +229,79 @@ export default async function DashboardPage() {
                         </Link>
                     </div>
                 ))}
+            </div>
+
+            {/* Student Specific: Available Events Arena */}
+            {profile?.role === 'student' && (
+                <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                                <Target className="w-6 h-6" />
+                            </div>
+                            <h2 className="text-2xl font-black font-outfit uppercase tracking-tight">Active Arenas</h2>
+                        </div>
+                    </div>
+
+                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                        {activeEvents?.map((event) => (
+                            <Card key={event.id} className="rounded-[2.5rem] overflow-hidden border-2 hover:border-primary/30 transition-all group">
+                                <CardHeader className="p-8 pb-4">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <Badge className="bg-slate-100 text-slate-800 border-none font-black text-[9px] uppercase tracking-widest px-3 py-1">
+                                            {event.media_type} competition
+                                        </Badge>
+                                        <Sparkles className="w-5 h-5 text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </div>
+                                    <CardTitle className="text-2xl font-black font-outfit uppercase leading-tight mb-2 group-hover:text-primary transition-colors">
+                                        {event.title}
+                                    </CardTitle>
+                                    <CardDescription className="line-clamp-2 text-slate-500 font-medium leading-relaxed">
+                                        {event.description}
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="px-8 pb-8 pt-4">
+                                    <Dialog>
+                                        <DialogTrigger asChild>
+                                            <Button className="w-full h-14 rounded-2xl bg-slate-950 hover:bg-primary transition-all font-black uppercase tracking-widest text-xs gap-3">
+                                                Enter Arena <Rocket className="w-4 h-4" />
+                                            </Button>
+                                        </DialogTrigger>
+                                        <DialogContent className="max-w-6xl rounded-[3rem] overflow-hidden p-0 border-2 border-slate-50 shadow-2xl bg-white/95 backdrop-blur-xl">
+                                            <DialogHeader className="p-8 pb-0">
+                                                <DialogTitle className="text-3xl font-black font-outfit uppercase flex items-center gap-3">
+                                                    <Target className="w-8 h-8 text-primary" /> {event.title}
+                                                </DialogTitle>
+                                                <DialogDescription className="text-slate-500 font-medium">
+                                                    Complete the following steps to submit your project for evaluation.
+                                                </DialogDescription>
+                                            </DialogHeader>
+                                            <div className="p-8">
+                                                <SubmissionWizard events={activeEvents || []} initialEventId={event.id} />
+                                            </div>
+                                        </DialogContent>
+                                    </Dialog>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Unified Submissions Table */}
+            <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-rose-600/10 flex items-center justify-center text-rose-600">
+                            <TrendingUp className="w-6 h-6" />
+                        </div>
+                        <h2 className="text-2xl font-black font-outfit uppercase tracking-tight">
+                            {profile?.role === 'student' ? "Your Mission Logs" : "Global Transmission Feed"}
+                        </h2>
+                    </div>
+                </div>
+
+                <SubmissionsTable submissions={recentSubmissions || []} role={profile?.role || 'student'} />
             </div>
 
 
