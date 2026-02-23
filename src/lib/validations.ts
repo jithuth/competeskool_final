@@ -21,6 +21,8 @@ export const eventSchema = z.object({
     banner_url: z.string().optional(),
     media_type: z.enum(["video", "audio", "image", "document", "audio_video", "audio_image"]),
     full_rules: z.string().min(10, "Rules must be detailed"),
+    is_private: z.boolean(),
+    school_id: z.string().optional().nullable(),
 });
 
 export type EventFormValues = z.infer<typeof eventSchema>;

@@ -13,14 +13,19 @@ export default async function EventsPage() {
     const isSuperAdmin = session?.role === 'super_admin';
     const userRole = session?.role as any;
 
-    const { data: events, error: eventsError } = await supabase
+    const { data: allEvents, error: eventsError } = await supabase
         .from("events")
-        .select("*")
+        .select("*, schools(name)")
         .order("created_at", { ascending: false });
 
     if (eventsError) {
         console.error("Database Fetch Error (Events):", eventsError);
     }
+
+    const events = isSuperAdmin ? allEvents : allEvents?.filter(event => {
+        if (!event.is_private) return true;
+        return event.school_id === session?.school_id;
+    });
 
     return (
         <div className="space-y-8">

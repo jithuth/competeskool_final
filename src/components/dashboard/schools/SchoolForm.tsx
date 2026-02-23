@@ -62,15 +62,15 @@ export function SchoolForm({ initialData, onSuccess }: { initialData?: any, onSu
 
     return (
         <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 <FormField
                     control={form.control}
                     name="name"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>School Name</FormLabel>
+                            <FormLabel className="text-xs font-bold uppercase tracking-widest text-slate-500">School Name</FormLabel>
                             <FormControl>
-                                <Input placeholder="e.g. International School" {...field} />
+                                <Input placeholder="e.g. International School" className="h-12 rounded-xl" {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -81,9 +81,9 @@ export function SchoolForm({ initialData, onSuccess }: { initialData?: any, onSu
                     name="address"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Address</FormLabel>
+                            <FormLabel className="text-xs font-bold uppercase tracking-widest text-slate-500">Institutional Address</FormLabel>
                             <FormControl>
-                                <Input placeholder="City, Country" {...field} />
+                                <Input placeholder="City, Country" className="h-12 rounded-xl" {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -94,16 +94,16 @@ export function SchoolForm({ initialData, onSuccess }: { initialData?: any, onSu
                     name="logo_url"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Logo URL (optional)</FormLabel>
+                            <FormLabel className="text-xs font-bold uppercase tracking-widest text-slate-500">Logo URL (optional)</FormLabel>
                             <FormControl>
-                                <Input placeholder="https://..." {...field} />
+                                <Input placeholder="https://..." className="h-12 rounded-xl" {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
                     )}
                 />
-                <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Save School"}
+                <Button type="submit" className="w-full h-12 rounded-xl bg-slate-900 hover:bg-black font-bold uppercase tracking-widest text-xs" disabled={loading}>
+                    {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : initialData?.id ? "Update Institution" : "Register Institution"}
                 </Button>
             </form>
         </Form>

@@ -16,7 +16,9 @@ import {
     Video,
     Sparkles,
     Search,
-    ChevronRight
+    ChevronRight,
+    Globe,
+    ExternalLink
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -100,6 +102,20 @@ const navItems: NavItem[] = [
         icon: Newspaper,
         roles: ["super_admin"],
         category: "CONTENT"
+    },
+    {
+        title: "Site Management",
+        href: "/dashboard/cms",
+        icon: Globe,
+        roles: ["super_admin"],
+        category: "CONTENT"
+    },
+    {
+        title: "Profile",
+        href: "/dashboard/profile",
+        icon: UserCheck,
+        roles: ["super_admin", "school_admin", "teacher", "student", "judge"],
+        category: "MAIN"
     },
     {
         title: "Settings",
@@ -209,6 +225,14 @@ export function Sidebar({ role }: { role: UserRole }) {
                     <LogOut className="w-5 h-5 group-hover:scale-110 transition-transform" />
                     <span className="font-bold">{isLoggingOut ? "Signing out..." : "Logout Session"}</span>
                 </Button>
+
+                <Link
+                    href="/"
+                    className="flex items-center gap-3 px-4 py-3 mt-2 rounded-xl text-xs font-bold text-slate-500 hover:text-white hover:bg-white/5 transition-all group"
+                >
+                    <ExternalLink className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                    <span>View Main Site</span>
+                </Link>
             </div>
         </div>
     );

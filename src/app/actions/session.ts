@@ -10,12 +10,13 @@ export async function getCurrentUserAction() {
 
     const { data: profile } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role, school_id")
         .eq("id", user.id)
         .single();
 
     return {
         userId: user.id,
-        role: profile?.role
+        role: profile?.role,
+        school_id: profile?.school_id
     };
 }

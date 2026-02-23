@@ -87,7 +87,7 @@ export function DataTable<TData, TValue>({
                                     column.setFilterValue(event.target.value);
                                 }
                             }}
-                            className="pl-11 h-12 rounded-xl bg-white border-slate-200 focus-visible:ring-indigo-500/20 shadow-sm transition-all"
+                            className="pl-11 h-12 rounded-2xl bg-muted/20 border-border focus-visible:ring-primary/20 shadow-sm transition-all"
                         />
                     </div>
                     {filters.map((filter) => (
@@ -101,18 +101,18 @@ export function DataTable<TData, TValue>({
                                         column.setFilterValue(event.target.value);
                                     }
                                 }}
-                                className="h-12 rounded-xl bg-white border-slate-200 focus-visible:ring-indigo-500/20 shadow-sm transition-all text-sm"
+                                className="h-12 rounded-2xl bg-muted/20 border-border focus-visible:ring-primary/20 shadow-sm transition-all text-sm"
                             />
                         </div>
                     ))}
                 </div>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="outline" className="h-12 rounded-none px-6 border-slate-200 shadow-sm hover:bg-slate-50 transition-all font-bold">
+                        <Button variant="outline" className="h-12 rounded-2xl px-6 border-border shadow-sm hover:bg-muted/30 transition-all font-bold">
                             View Options <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="rounded-none border-slate-200 p-2 shadow-xl">
+                    <DropdownMenuContent align="end" className="rounded-2xl border-border p-2 shadow-2xl bg-card">
                         {table
                             .getAllColumns()
                             .filter((column) => column.getCanHide())
@@ -120,7 +120,7 @@ export function DataTable<TData, TValue>({
                                 return (
                                     <DropdownMenuCheckboxItem
                                         key={column.id}
-                                        className="capitalize rounded-lg font-medium"
+                                        className="capitalize rounded-xl font-medium"
                                         checked={column.getIsVisible()}
                                         onCheckedChange={(value) =>
                                             column.toggleVisibility(!!value)
@@ -133,7 +133,7 @@ export function DataTable<TData, TValue>({
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>
-            <div className="rounded-none border-2 bg-white shadow-xl shadow-slate-200/50 overflow-hidden">
+            <div className="rounded-[2rem] border-2 border-border bg-card shadow-2xl shadow-black/5 overflow-hidden">
                 <Table>
                     <TableHeader>
                         {table.getHeaderGroups().map((headerGroup) => (

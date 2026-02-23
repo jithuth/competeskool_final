@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { UserRole } from "@/lib/types";
-import { Bell, Hexagon, Command, Search } from "lucide-react";
+import { Bell, Hexagon, Command, Search, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { NotificationBell } from "@/components/dashboard/NotificationBell";
@@ -50,6 +50,13 @@ export default async function DashboardLayout({
                     </div>
 
                     <div className="flex items-center gap-6">
+                        <Button asChild variant="ghost" size="sm" className="hidden md:flex items-center gap-2 rounded-xl text-slate-500 hover:text-indigo-600 hover:bg-slate-50 font-bold text-xs">
+                            <Link href="/">
+                                <ExternalLink className="w-4 h-4" />
+                                View Site
+                            </Link>
+                        </Button>
+
                         <div className="flex items-center gap-2">
                             <NotificationBell />
                         </div>

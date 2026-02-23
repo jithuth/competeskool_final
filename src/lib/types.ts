@@ -41,6 +41,8 @@ export interface Event {
     created_by: string | null;
     banner_url: string | null;
     full_rules: string | null;
+    is_private?: boolean;
+    school_id?: string | null;
 }
 
 export interface Submission {

@@ -140,3 +140,50 @@ export async function sendBulkEventEmailAction(eventId: string) {
 
     return { success: true, count: schoolAdmins.length };
 }
+
+export async function saveUserProfileAction(data: any) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { error: "Unauthorized" };
+
+    const { data: profile } = await supabase.from('profiles').select('role, school_id').eq('id', user.id).single();
+    if (!profile) return { error: "Identity not found" };
+
+    // Permission logic:
+    // Super Admin: Can edit anyone
+    // School Admin: Can edit anyone in their school
+    // Teacher: Can edit students in their class (we'll implement basic check)
+
+    const adminSupabase = createSupabaseClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    // Get target profile
+    const { data: targetProfile } = await adminSupabase.from('profiles').select('*').eq('id', data.id).single();
+    if (!targetProfile) return { error: "Target not found" };
+
+    const canEdit = profile.role === 'super_admin' ||
+        (profile.role === 'school_admin' && profile.school_id === targetProfile.school_id) ||
+        (profile.role === 'teacher' && targetProfile.role === 'student'); // Basic check
+
+    if (!canEdit) return { error: "Insufficient permissions" };
+
+    // Update Profile
+    const { error: profileError } = await adminSupabase
+        .from('profiles')
+        .update({ full_name: data.full_name })
+        .eq('id', data.id);
+
+    if (profileError) return { error: profileError.message };
+
+    // Update Role Specific Data
+    if (targetProfile.role === 'teacher' && data.class_section) {
+        await adminSupabase.from('teachers').update({ class_section: data.class_section }).eq('id', data.id);
+    } else if (targetProfile.role === 'student' && data.grade_level) {
+        await adminSupabase.from('students').update({ grade_level: data.grade_level }).eq('id', data.id);
+    }
+
+    return { success: true };
+}

@@ -8,7 +8,10 @@ import {
     MoreHorizontal,
     Trash2,
     Copy,
-    Loader2
+    Loader2,
+    Eye,
+    UserMinus,
+    UserCheck
 } from "lucide-react";
 import {
     Dialog,
@@ -17,7 +20,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { TeacherForm } from "./TeacherForm";
+import { StudentForm } from "./StudentForm";
 
 import {
     DropdownMenu,
@@ -31,13 +34,14 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { TeacherColumn } from "./columns";
+import { StudentColumn } from "./columns";
+import { sendApprovalNotification } from "@/lib/notifications";
 
-interface TeacherActionsProps {
-    teacher: TeacherColumn;
+interface StudentActionsProps {
+    student: StudentColumn;
 }
 
-export function TeacherActions({ teacher }: TeacherActionsProps) {
+export function StudentActions({ student }: StudentActionsProps) {
     const [loading, setLoading] = useState(false);
     const [showEditDialog, setShowEditDialog] = useState(false);
     const supabase = createClient();
@@ -48,7 +52,7 @@ export function TeacherActions({ teacher }: TeacherActionsProps) {
         const { error } = await supabase
             .from("profiles")
             .update({ status })
-            .eq("id", teacher.id);
+            .eq("id", student.id);
 
         if (error) {
             toast.error(error.message);
@@ -56,28 +60,32 @@ export function TeacherActions({ teacher }: TeacherActionsProps) {
             return;
         }
 
-        toast.success(`Teacher ${status === 'approved' ? 'approved' : 'disapproved'} successfully.`);
+        if (status === 'approved') {
+            await sendApprovalNotification(student.email || '', student.full_name);
+        }
+
+        toast.success(`Student ${status} successfully.`);
         setLoading(false);
         router.refresh();
     };
 
-    const deleteTeacher = async () => {
-        if (!confirm("Are you sure you want to delete this teacher?")) return;
+    const deleteStudent = async () => {
+        if (!confirm("Are you sure you want to delete this student profile? This action is irreversible.")) return;
 
         setLoading(true);
 
         const { error } = await supabase
             .from("profiles")
             .delete()
-            .eq("id", teacher.id);
+            .eq("id", student.id);
 
         if (error) {
-            toast.error("Failed to delete the teacher. Please refer to support if issue persists.");
+            toast.error("Failed to delete the profile.");
             setLoading(false);
             return;
         }
 
-        toast.success("Teacher removed.");
+        toast.success("Student profile removed.");
         setLoading(false);
         router.refresh();
     };
@@ -93,7 +101,7 @@ export function TeacherActions({ teacher }: TeacherActionsProps) {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56 rounded-2xl bg-card border-border shadow-2xl">
                     <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
-                        Institutional Control
+                        Student Controls
                     </DropdownMenuLabel>
 
                     <DropdownMenuSeparator />
@@ -107,17 +115,26 @@ export function TeacherActions({ teacher }: TeacherActionsProps) {
 
                     <DropdownMenuSeparator />
 
-                    {teacher.status !== 'approved' && (
-                        <DropdownMenuItem
-                            onClick={() => updateStatus('approved')}
-                            disabled={loading}
-                            className="text-emerald-500 focus:text-emerald-400 focus:bg-emerald-500/10 font-bold cursor-pointer py-3 rounded-xl mx-1"
-                        >
-                            <Check className="mr-3 h-4 w-4" /> Approve Instructor
-                        </DropdownMenuItem>
+                    {student.status === 'pending' && (
+                        <>
+                            <DropdownMenuItem
+                                onClick={() => updateStatus('approved')}
+                                disabled={loading}
+                                className="text-emerald-500 focus:text-emerald-400 focus:bg-emerald-500/10 font-bold cursor-pointer py-3 rounded-xl mx-1"
+                            >
+                                <UserCheck className="mr-3 h-4 w-4" /> Approve Enrollment
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onClick={() => updateStatus('rejected')}
+                                disabled={loading}
+                                className="text-amber-500 focus:text-amber-400 focus:bg-amber-500/10 font-bold cursor-pointer py-3 rounded-xl mx-1"
+                            >
+                                <UserMinus className="mr-3 h-4 w-4" /> Reject Enrollment
+                            </DropdownMenuItem>
+                        </>
                     )}
 
-                    {teacher.status === 'approved' && (
+                    {student.status === 'approved' && (
                         <DropdownMenuItem
                             onClick={() => updateStatus('rejected')}
                             disabled={loading}
@@ -127,20 +144,30 @@ export function TeacherActions({ teacher }: TeacherActionsProps) {
                         </DropdownMenuItem>
                     )}
 
+                    {student.status === 'rejected' && (
+                        <DropdownMenuItem
+                            onClick={() => updateStatus('approved')}
+                            disabled={loading}
+                            className="text-emerald-500 focus:text-emerald-400 focus:bg-emerald-500/10 font-bold cursor-pointer py-3 rounded-xl mx-1"
+                        >
+                            <Check className="mr-3 h-4 w-4" /> Restore Access
+                        </DropdownMenuItem>
+                    )}
+
                     <DropdownMenuItem
                         onClick={() => {
-                            navigator.clipboard.writeText(teacher.id);
-                            toast.success("Teacher ID copied");
+                            navigator.clipboard.writeText(student.id);
+                            toast.success("Student ID copied");
                         }}
                         className="font-semibold cursor-pointer py-3 rounded-xl mx-1"
                     >
-                        <Copy className="mr-3 h-4 w-4 text-slate-500" /> Copy Account ID
+                        <Copy className="mr-3 h-4 w-4 text-slate-500" /> Copy Unique ID
                     </DropdownMenuItem>
 
                     <DropdownMenuSeparator />
 
                     <DropdownMenuItem
-                        onClick={deleteTeacher}
+                        onClick={deleteStudent}
                         disabled={loading}
                         className="text-rose-500 focus:text-rose-400 focus:bg-rose-500/10 font-bold cursor-pointer py-3 rounded-xl mx-1"
                     >
@@ -152,13 +179,13 @@ export function TeacherActions({ teacher }: TeacherActionsProps) {
             <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
                 <DialogContent className="max-w-xl rounded-[2rem] border-2 border-border bg-card shadow-2xl">
                     <DialogHeader>
-                        <DialogTitle className="text-2xl font-black font-outfit text-gradient">Edit Teacher Profile</DialogTitle>
+                        <DialogTitle className="text-2xl font-black font-outfit text-gradient">Edit Student Details</DialogTitle>
                         <DialogDescription className="font-medium text-slate-500">
-                            Update institutional details for {teacher.full_name}
+                            Update profile information for {student.full_name}
                         </DialogDescription>
                     </DialogHeader>
-                    <TeacherForm
-                        initialData={teacher}
+                    <StudentForm
+                        initialData={student}
                         onSuccess={() => setShowEditDialog(false)}
                     />
                 </DialogContent>

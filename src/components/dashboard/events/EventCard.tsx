@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, ScrollText, Users, Send, CheckCircle2, Info, ArrowRight } from "lucide-react";
+import { Calendar, ScrollText, Users, Send, CheckCircle2, Info, ArrowRight, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -65,10 +65,15 @@ export function EventCard({ event, role }: EventCardProps) {
                         <ScrollText className="w-12 h-12 text-slate-300" />
                     </div>
                 )}
-                <div className="absolute top-4 left-4">
-                    <Badge className="bg-white/90 backdrop-blur text-slate-900 border-none shadow-sm font-black uppercase text-[9px] tracking-widest px-3 py-1">
+                <div className="absolute top-4 left-4 flex flex-col gap-2">
+                    <Badge className="bg-white/90 backdrop-blur text-slate-900 border-none shadow-sm font-black uppercase text-[9px] tracking-widest px-3 py-1 self-start">
                         {event.media_type}
                     </Badge>
+                    {event.is_private && (
+                        <Badge className="bg-red-600/90 backdrop-blur text-white border-none shadow-sm font-black uppercase text-[9px] tracking-widest px-3 py-1 self-start flex items-center gap-1">
+                            <XCircle className="w-3 h-3" /> Private • {event.schools?.name || "Targeted School"}
+                        </Badge>
+                    )}
                 </div>
             </div>
 

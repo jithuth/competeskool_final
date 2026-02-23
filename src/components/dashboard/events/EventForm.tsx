@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -57,8 +57,17 @@ export function EventForm({ initialData, onSuccess }: { initialData?: any, onSuc
     const [loading, setLoading] = useState(false);
     const [bannerFile, setBannerFile] = useState<File | null>(null);
     const [bannerPreview, setBannerPreview] = useState<string>(initialData?.banner_url || "");
+    const [schools, setSchools] = useState<any[]>([]);
     const router = useRouter();
     const supabase = createClient();
+
+    useEffect(() => {
+        async function fetchSchools() {
+            const { data } = await supabase.from("schools").select("id, name").eq("status", "approved");
+            if (data) setSchools(data);
+        }
+        fetchSchools();
+    }, [supabase]);
 
     const now = new Date();
     const thirtyDaysLater = new Date();
@@ -82,6 +91,8 @@ export function EventForm({ initialData, onSuccess }: { initialData?: any, onSuc
                 : formatForInput(thirtyDaysLater),
             banner_url: initialData?.banner_url || "",
             full_rules: initialData?.full_rules || "",
+            is_private: Boolean(initialData?.is_private || false),
+            school_id: initialData?.school_id || "",
         },
     });
 
@@ -138,6 +149,7 @@ export function EventForm({ initialData, onSuccess }: { initialData?: any, onSuc
                 banner_url: finalBannerUrl,
                 created_by: user?.id,
                 status: initialData?.id ? initialData.status : 'active',
+                school_id: values.is_private ? (values.school_id || null) : null
             };
 
             const result = await saveEventAction(dataToSave);
@@ -233,6 +245,53 @@ export function EventForm({ initialData, onSuccess }: { initialData?: any, onSuc
                                             </FormItem>
                                         )}
                                     />
+                                    <FormField
+                                        control={form.control}
+                                        name="is_private"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1 mb-1 block">Visibility</FormLabel>
+                                                <Select onValueChange={(v) => field.onChange(v === "true")} value={field.value ? "true" : "false"}>
+                                                    <FormControl>
+                                                        <SelectTrigger className="h-12 bg-white rounded-lg border-slate-200 text-sm font-bold px-5">
+                                                            <SelectValue placeholder="Select Visibility" />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent className="rounded-lg">
+                                                        <SelectItem value="false" className="py-2 text-sm">Public Event</SelectItem>
+                                                        <SelectItem value="true" className="py-2 text-sm">Private (Dedicated School)</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage className="font-bold text-xs" />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    {form.watch("is_private") && (
+                                        <FormField
+                                            control={form.control}
+                                            name="school_id"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel className="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1 mb-1 block">Dedicated School</FormLabel>
+                                                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                                                        <FormControl>
+                                                            <SelectTrigger className="h-12 bg-white rounded-lg border-slate-200 text-sm font-bold px-5">
+                                                                <SelectValue placeholder="Select school" />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent className="rounded-lg">
+                                                            {schools.map(s => (
+                                                                <SelectItem key={s.id} value={s.id} className="py-2 text-sm">
+                                                                    {s.name}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <FormMessage className="font-bold text-xs" />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    )}
                                 </div>
                                 <FormField
                                     control={form.control}
