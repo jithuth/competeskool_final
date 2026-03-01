@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { MoreHorizontal, Edit, Trash, Eye, Loader2, Share2, Mail } from "lucide-react";
+import { MoreHorizontal, Edit, Trash, Eye, Loader2, Share2, Mail, ClipboardList, Trophy } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -116,6 +117,28 @@ export function EventActions({ data }: EventActionsProps) {
                     <EventForm initialData={data} onSuccess={() => setEditOpen(false)} />
                 </DialogContent>
             </Dialog>
+
+            <Link href={`/dashboard/events/${data.id}/scoring`}>
+                <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 rounded-lg border-indigo-100 bg-indigo-50/50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700 font-bold text-[10px] uppercase tracking-wider transition-all active:scale-95"
+                >
+                    <ClipboardList className="w-3.5 h-3.5 mr-1.5" /> Evaluate
+                </Button>
+            </Link>
+
+            {data.results_status === "published" && (
+                <Link href={`/events/${data.id}/results`} target="_blank">
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 rounded-lg border-amber-100 bg-amber-50/50 text-amber-600 hover:bg-amber-100 hover:text-amber-700 font-bold text-[10px] uppercase tracking-wider transition-all active:scale-95"
+                    >
+                        <Trophy className="w-3.5 h-3.5 mr-1.5" /> Results
+                    </Button>
+                </Link>
+            )}
 
             <Button
                 size="sm"

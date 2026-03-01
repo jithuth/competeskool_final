@@ -22,6 +22,7 @@ import { SubmissionsTable } from "@/components/dashboard/submissions/Submissions
 import { SubmissionWizard } from "@/components/dashboard/submissions/SubmissionWizard";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Rocket, Target, Sparkles, ExternalLink } from "lucide-react";
+import { ScoringAlertBanner } from "@/components/dashboard/ScoringAlertBanner";
 
 export default async function DashboardPage() {
     const supabase = await createClient();
@@ -99,6 +100,22 @@ export default async function DashboardPage() {
 
     const { data: recentSubmissions } = await submissionsQuery;
 
+    // Fetch events that need scoring action (ended but not started)
+    let eventsNeedingAction: any[] = [];
+    if (isSuperAdmin) {
+        const now = new Date().toISOString();
+        const { data: actionEvents } = await supabase
+            .from("events")
+            .select("id, title, end_date, scoring_deadline, results_status")
+            .lt("end_date", now)
+            .eq("results_status", "not_started")
+            .order("end_date", { ascending: true });
+        eventsNeedingAction = (actionEvents || []).map((e: any) => ({
+            ...e,
+            daysOverdue: Math.floor((Date.now() - new Date(e.end_date).getTime()) / (1000 * 60 * 60 * 24)),
+        }));
+    }
+
     const stats = [
         {
             title: "Students",
@@ -159,6 +176,9 @@ export default async function DashboardPage() {
 
     return (
         <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10">
+            {/* Scoring Alert Banner — super admin only */}
+            {isSuperAdmin && <ScoringAlertBanner events={eventsNeedingAction} />}
+
             {/* Hero Section */}
             <div className="relative overflow-hidden rounded-[2.5rem] bg-slate-950 p-8 md:p-12 text-white shadow-2xl">
                 <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-indigo-500/20 to-transparent blur-3xl -z-0" />

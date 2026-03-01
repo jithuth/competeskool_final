@@ -43,37 +43,32 @@ export default async function PublicLayout({
 
     return (
         <div className="flex flex-col min-h-screen bg-background">
-            {/* Centered Header */}
+            {/* Header */}
             <header className="w-full border-b bg-white/95 backdrop-blur-md border-slate-200 relative z-50 shadow-sm">
-                <div className="container mx-auto px-6 py-6 flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="container mx-auto px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
+
                     {/* Brand Logo */}
                     <Link href="/" className="group flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center group-hover:rotate-12 transition-transform overflow-hidden ${siteLogo ? 'bg-transparent p-0.5' : 'bg-slate-900 shadow-lg p-1'}`}>
+                        <div className={`w-28 h-28 flex items-center justify-center overflow-hidden transition-transform group-hover:scale-105 ${siteLogo ? 'bg-transparent' : 'bg-slate-900 rounded-2xl p-2'}`}>
                             {siteLogo ? (
-                                <img src={siteLogo} alt="Logo" className="w-full h-full object-contain rounded-2xl" />
+                                <img src={siteLogo} alt="Logo" className="w-full h-full object-contain" />
                             ) : (
-                                <GraduationCap className="w-7 h-7 text-white" />
+                                <GraduationCap className="w-14 h-14 text-white" />
                             )}
                         </div>
-                        <div className="flex flex-col">
-                            <span className="text-2xl font-black font-outfit uppercase tracking-[0.2em] text-slate-900 leading-none">
-                                {siteTitle}
-                            </span>
-                            <span className="text-[9px] font-black uppercase tracking-[0.4em] text-primary mt-1">
-                                Excellence in Education
-                            </span>
-                        </div>
                     </Link>
-                    {/* ... nav remains the same ... */}
 
-                    {/* Centered Navigation */}
+                    {/* Navigation */}
                     <nav className="flex flex-wrap justify-center items-center gap-x-8 gap-y-4">
                         {[
+                            { name: "Home", href: "/" },
                             { name: "About", href: "/about" },
                             { name: "Competitions", href: "/competitions" },
                             { name: "News", href: "/news" },
                             { name: "Winners", href: "/winners" },
                             { name: "Gallery", href: "/gallery" },
+                            { name: "Icon Story", href: "/icon-story" },
+                            { name: "Contact", href: "/contact" },
                             { name: "Ranking", href: "/ranking" },
                         ].map((item) => (
                             <Link
@@ -88,7 +83,7 @@ export default async function PublicLayout({
                     </nav>
 
                     {/* Auth Actions */}
-                    <div className="hidden lg:flex items-center gap-3">
+                    <div className="flex items-center gap-3">
                         {user ? (
                             <>
                                 <form action={async () => {
@@ -125,6 +120,8 @@ export default async function PublicLayout({
                     </div>
                 </div>
             </header>
+
+
 
             <main className="flex-1">
                 {children}

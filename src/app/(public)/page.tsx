@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { MoveRight, Calendar, Trophy, ArrowUpRight, ScrollText, Bell, Globe, XCircle } from "lucide-react";
-import Image from "next/image";
+import { MoveRight, Calendar, Trophy, ArrowUpRight, ScrollText, XCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { format } from "date-fns";
 import { getCurrentUserAction } from "@/app/actions/session";
 import { getSiteSettings } from "@/lib/cms";
+import EventCarousel from "@/components/public/EventCarousel";
 
 export default async function HomePage() {
     const supabase = await createClient();
@@ -14,20 +14,23 @@ export default async function HomePage() {
     const user = await getCurrentUserAction();
     const userSchoolId = user?.school_id;
 
-    // Fetch upcoming events for the sidebar
+    // Fetch events
     const { data: allUpcoming } = await supabase
         .from('events')
         .select('*, schools(name)')
         .order('end_date', { ascending: true });
 
-    const upcomingEvents = allUpcoming?.filter(event => {
+    const filteredEvents = allUpcoming?.filter(event => {
         if (!event.is_private || user?.role === 'super_admin') return true;
         return event.school_id === userSchoolId;
-    }).slice(0, 3);
+    }) ?? [];
 
-    const heroTitle = settings?.home_hero_title || "All-India National Talent Search";
-    const heroSubtitle = settings?.home_hero_subtitle || "2026 Season";
-    const heroDescription = settings?.home_hero_description || "Showcase your institutional talent on India's most prestigious online talent platform.";
+    // 5 most recent events for carousel
+    const carouselEvents = filteredEvents.slice(0, 5);
+
+    // 3 upcoming for deadlines sidebar
+    const upcomingEvents = filteredEvents.slice(0, 3);
+
     const heroImage = settings?.home_hero_image || "/national_talent_search_poster_1771809515695.png";
 
     return (
@@ -36,51 +39,9 @@ export default async function HomePage() {
             <section className="container mx-auto px-6 pt-12">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
 
-                    {/* LEFT: Premium Carousel / Visual Hero (8 cols) */}
-                    <div className="lg:col-span-8 relative rounded-[2rem] overflow-hidden group border-2 border-slate-100 shadow-xl shadow-slate-200/50 aspect-[16/9] lg:aspect-auto min-h-[500px] bg-white">
-                        {/* Soft white overlay for better text contrast if the image is busy */}
-                        <div className="absolute inset-0 bg-white/10 z-10" />
-
-                        {/* Static Carousel Simulation (showing 1st premium image) */}
-                        <div className="absolute inset-0 transition-transform duration-1000 group-hover:scale-105">
-                            <Image
-                                src={heroImage}
-                                alt="National Talent Search"
-                                fill
-                                className="object-cover"
-                            />
-                        </div>
-
-                        {/* Slide Overlay Content - Using an opaque white gradient to ensure text readability */}
-                        <div className="absolute bottom-0 left-0 right-0 p-8 md:p-12 z-20 bg-gradient-to-t from-white via-white/95 to-transparent">
-                            <div className="max-w-xl space-y-6 pt-16">
-                                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary border border-primary/20 text-[10px] font-black uppercase tracking-[0.2em] shadow-sm">
-                                    <Globe className="w-3.5 h-3.5" />
-                                    <span>Nationwide Registration Open</span>
-                                </div>
-                                <h1 className="text-4xl md:text-5xl lg:text-6xl font-black font-outfit text-slate-900 uppercase leading-[0.95] tracking-tighter drop-shadow-sm">
-                                    {heroTitle} <br />
-                                    <span className="text-primary mt-2 block">{heroSubtitle}</span>
-                                </h1>
-                                <p className="text-lg text-slate-600 font-medium max-w-lg leading-relaxed">
-                                    {heroDescription}
-                                </p>
-                                <div className="pt-4">
-                                    <Link href="/competitions">
-                                        <Button className="h-14 px-10 rounded-2xl bg-primary text-white font-black uppercase tracking-widest text-[10px] hover:bg-primary/90 transition-all shadow-xl shadow-primary/25 group/btn">
-                                            Register Institution <ArrowUpRight className="ml-2 w-4 h-4 transition-transform group-hover/btn:-translate-y-1 group-hover/btn:translate-x-1" />
-                                        </Button>
-                                    </Link>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Slide Indicators */}
-                        <div className="absolute right-12 bottom-12 z-30 flex gap-3">
-                            {[1, 2, 3].map(i => (
-                                <div key={i} className={`h-1.5 rounded-full transition-all shadow-sm ${i === 1 ? 'w-10 bg-primary' : 'w-4 bg-primary/20'}`} />
-                            ))}
-                        </div>
+                    {/* LEFT: Event Carousel (8 cols) */}
+                    <div className="lg:col-span-8">
+                        <EventCarousel events={carouselEvents} fallbackImage={heroImage} />
                     </div>
 
                     {/* RIGHT: Institutional Activity Sidebar (4 cols) */}
@@ -131,22 +92,6 @@ export default async function HomePage() {
                             </Link>
                         </div>
 
-                        {/* Quick Action / Notice */}
-                        <div className="bg-gradient-to-br from-primary to-indigo-600 rounded-[2rem] p-8 text-white relative overflow-hidden group shadow-xl shadow-primary/25">
-                            <div className="absolute inset-0 bg-white/5 mix-blend-overlay"></div>
-                            <div className="absolute top-0 right-0 p-8 opacity-20 transition-transform group-hover:scale-110">
-                                <Bell className="w-24 h-24 rotate-12 text-white" />
-                            </div>
-                            <div className="relative z-10 space-y-4">
-                                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/80">Notice Board</h4>
-                                <p className="text-lg font-black font-outfit uppercase leading-tight tracking-tight drop-shadow-sm text-white">
-                                    New School <br /> Registration Period <br /> is Now Open
-                                </p>
-                                <Link href="/login?view=signup" className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:gap-3 transition-all bg-white text-primary px-4 py-2.5 rounded-xl shadow-sm mt-3 border border-white/20 hover:bg-slate-50">
-                                    Start Application <MoveRight className="w-3 h-3" />
-                                </Link>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </section >

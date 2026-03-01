@@ -1,0 +1,95 @@
+{
+    "version": 1.1,
+    "atDirectives": [
+        {
+            "name": "@tailwind",
+            "description": "Use the `@tailwind` directive to insert Tailwind's `base`, `components`, `utilities` and `screens` styles into your CSS.",
+            "references": [
+                {
+                    "name": "Tailwind CSS Documentation",
+                    "url": "https://tailwindcss.com/docs/functions-and-directives#tailwind"
+                }
+            ]
+        },
+        {
+            "name": "@apply",
+            "description": "Use `@apply` to inline any existing utility classes into your own custom CSS.",
+            "references": [
+                {
+                    "name": "Tailwind CSS Documentation",
+                    "url": "https://tailwindcss.com/docs/functions-and-directives#apply"
+                }
+            ]
+        },
+        {
+            "name": "@layer",
+            "description": "Use the `@layer` directive to tell Tailwind which 'bucket' a set of custom styles belong to.",
+            "references": [
+                {
+                    "name": "Tailwind CSS Documentation",
+                    "url": "https://tailwindcss.com/docs/functions-and-directives#layer"
+                }
+            ]
+        },
+        {
+            "name": "@theme",
+            "description": "Tailwind v4: Use `@theme` to define your design tokens (colors, spacing, fonts, etc.) directly in CSS.",
+            "references": [
+                {
+                    "name": "Tailwind CSS v4 Documentation",
+                    "url": "https://tailwindcss.com/docs/v4-beta"
+                }
+            ]
+        },
+        {
+            "name": "@source",
+            "description": "Tailwind v4: Use `@source` to specify additional source files for Tailwind to scan for class names.",
+            "references": [
+                {
+                    "name": "Tailwind CSS v4 Documentation",
+                    "url": "https://tailwindcss.com/docs/v4-beta"
+                }
+            ]
+        },
+        {
+            "name": "@custom-variant",
+            "description": "Tailwind v4: Use `@custom-variant` to define a custom variant (like `dark`, `hover`, etc.) with a custom CSS selector.",
+            "references": [
+                {
+                    "name": "Tailwind CSS v4 Documentation",
+                    "url": "https://tailwindcss.com/docs/v4-beta"
+                }
+            ]
+        },
+        {
+            "name": "@variant",
+            "description": "Tailwind v4: Use `@variant` to apply a Tailwind variant to styles inside a block.",
+            "references": [
+                {
+                    "name": "Tailwind CSS v4 Documentation",
+                    "url": "https://tailwindcss.com/docs/v4-beta"
+                }
+            ]
+        },
+        {
+            "name": "@utility",
+            "description": "Tailwind v4: Use `@utility` to define a custom utility class.",
+            "references": [
+                {
+                    "name": "Tailwind CSS v4 Documentation",
+                    "url": "https://tailwindcss.com/docs/v4-beta"
+                }
+            ]
+        },
+        {
+            "name": "@import",
+            "description": "Standard CSS @import, also used by Tailwind v4 to import framework CSS.",
+            "references": [
+                {
+                    "name": "MDN Documentation",
+                    "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/@import"
+                }
+            ]
+        }
+    ]
+}

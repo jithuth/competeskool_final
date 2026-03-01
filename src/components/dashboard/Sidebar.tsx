@@ -97,6 +97,20 @@ const navItems: NavItem[] = [
         category: "MANAGEMENT"
     },
     {
+        title: "Results & Badges",
+        href: "/dashboard/results",
+        icon: Trophy,
+        roles: ["super_admin"],
+        category: "MANAGEMENT"
+    },
+    {
+        title: "My Results",
+        href: "/dashboard/my-results",
+        icon: Trophy,
+        roles: ["student"],
+        category: "PARTICIPATION"
+    },
+    {
         title: "News",
         href: "/dashboard/news",
         icon: Newspaper,
@@ -159,7 +173,7 @@ export function Sidebar({ role, siteSettings }: { role: UserRole, siteSettings?:
 
             <div className="p-8 pt-10">
                 <Link href="/" className="flex items-center space-x-3 group">
-                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 group-hover:scale-110 transition-transform overflow-hidden p-1">
+                    <div className="w-[104px] h-[104px] rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 group-hover:scale-110 transition-transform overflow-hidden p-1">
                         {siteLogo ? (
                             <img src={siteLogo} alt="Logo" className="w-full h-full object-contain" />
                         ) : (

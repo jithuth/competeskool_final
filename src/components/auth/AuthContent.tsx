@@ -255,9 +255,9 @@ export function AuthContent({ siteSettings }: { siteSettings?: Record<string, st
                     <div className="mb-10 flex flex-col items-center lg:items-start">
                         <Link href="/" className="mb-8 group">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-600/20 group-hover:rotate-12 transition-transform overflow-hidden p-1">
+                                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center group-hover:rotate-12 transition-transform overflow-hidden ${siteLogo ? 'bg-transparent' : 'bg-slate-900 shadow-lg p-1'}`}>
                                     {siteLogo ? (
-                                        <img src={siteLogo} alt="Logo" className="w-full h-full object-contain" />
+                                        <img src={siteLogo} alt="Logo" className="w-full h-full object-contain rounded-2xl" />
                                     ) : (
                                         <GraduationCap className="w-6 h-6 text-white" />
                                     )}

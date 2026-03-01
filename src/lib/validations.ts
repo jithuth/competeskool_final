@@ -31,16 +31,18 @@ export const submissionSchema = z.object({
     title: z.string().min(3, "Title is required"),
     description: z.string().min(10, "Description is required"),
     event_id: z.string().uuid(),
-    type: z.enum(["upload", "youtube"]),
+    type: z.enum(["upload", "youtube", "vimeo"]),
     video_url: z.string().optional(),
-    youtube_url: z.string().url().optional(),
+    youtube_url: z.string().url().optional().or(z.literal("")),
+    vimeo_url: z.string().url().optional().or(z.literal("")),
 }).refine((data) => {
     if (data.type === "youtube" && !data.youtube_url) return false;
+    if (data.type === "vimeo" && !data.vimeo_url) return false;
     if (data.type === "upload" && !data.video_url) return false;
     return true;
 }, {
-    message: "Video source is required",
-    path: ["video_url", "youtube_url"],
+    message: "Media source is required",
+    path: ["video_url"],
 });
 
 export type SubmissionFormValues = z.infer<typeof submissionSchema>;

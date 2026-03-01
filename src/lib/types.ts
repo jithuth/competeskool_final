@@ -62,6 +62,7 @@ export interface SubmissionVideo {
     submission_id: string;
     video_url: string | null;
     youtube_url: string | null;
+    vimeo_url: string | null;
     storage_path: string | null;
-    type: 'upload' | 'youtube';
+    type: 'upload' | 'youtube' | 'vimeo';
 }

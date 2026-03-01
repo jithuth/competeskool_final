@@ -1,0 +1,15 @@
+{
+    "css.customData": [
+        ".vscode/tailwind-css-custom-data.json"
+    ],
+    "css.validate": false,
+    "editor.quickSuggestions": {
+        "strings": true
+    },
+    "tailwindCSS.includeLanguages": {
+        "plaintext": "html"
+    },
+    "[css]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    }
+}

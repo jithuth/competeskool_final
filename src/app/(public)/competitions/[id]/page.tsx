@@ -1,11 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
-import { Calendar, ScrollText, Share2, Award, Info, ArrowLeft, Trophy, Clock, Video, Image as ImageIcon, Music, XCircle, Lock } from "lucide-react";
+import { Calendar, ScrollText, Share2, Award, Info, ArrowLeft, Trophy, Clock, Video, Image as ImageIcon, Music, XCircle, Heart, ExternalLink } from "lucide-react";
 import { Metadata, ResolvingMetadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { VoteButton } from "@/components/public/VoteButton";
 
 interface Props {
     params: Promise<{ id: string }>;
@@ -55,11 +56,43 @@ export default async function EventDetailPage({ params }: Props) {
 
     // Access control for private events
     if (event.is_private && event.school_id !== userSchoolId && user?.role !== 'super_admin') {
-        // Technically this should be 403, but notFound or redirect is fine
         notFound();
     }
 
     const isExpired = new Date(event.end_date) < new Date();
+    const isPublished = event.results_status === "published";
+    const votingOpen = isExpired && !["scoring_locked", "review", "published"].includes(event.results_status ?? "");
+
+    // Fetch public submissions with vote counts
+    const { data: submissionsRaw } = await supabase
+        .from("submissions")
+        .select(`
+            id, title, description,
+            profiles!submissions_student_id_fkey(full_name, schools(name)),
+            submission_videos(type, youtube_url, vimeo_url, video_url)
+        `)
+        .eq("event_id", id)
+        .order("created_at", { ascending: false });
+
+    // Get vote counts per submission
+    const submissionIds = submissionsRaw?.map(s => s.id) || [];
+    const { data: voteCounts } = await supabase
+        .from("submission_votes")
+        .select("submission_id")
+        .in("submission_id", submissionIds.length ? submissionIds : ["00000000-0000-0000-0000-000000000000"]);
+
+    const voteCountMap = new Map<string, number>();
+    for (const v of voteCounts || []) {
+        voteCountMap.set(v.submission_id, (voteCountMap.get(v.submission_id) || 0) + 1);
+    }
+
+    const submissions = (submissionsRaw || []).map((s: any) => ({
+        ...s,
+        voteCount: voteCountMap.get(s.id) || 0,
+    }));
+
+    // Sort by votes descending for display
+    submissions.sort((a: any, b: any) => b.voteCount - a.voteCount);
 
     return (
         <div className="min-h-screen bg-[#080B1A]">
@@ -98,9 +131,9 @@ export default async function EventDetailPage({ params }: Props) {
                                     {event.media_type === 'audio' && <Music className="w-3.5 h-3.5" />}
                                     {event.media_type} submission
                                 </Badge>
-                                {event.is_private && (
-                                    <Badge className="bg-red-500/20 text-red-100 border-red-500/30 backdrop-blur-md px-4 py-1.5 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-[0_0_20px_rgba(239,68,68,0.2)]">
-                                        <XCircle className="w-3.5 h-3.5" /> Private Event • {event.schools?.name || "Targeted School"}
+                                {isPublished && (
+                                    <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 backdrop-blur-md px-4 py-1.5 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 animate-pulse">
+                                        <Trophy className="w-3.5 h-3.5" /> Results Published
                                     </Badge>
                                 )}
                             </div>
@@ -115,6 +148,28 @@ export default async function EventDetailPage({ params }: Props) {
 
             {/* Content Section */}
             <div className="container mx-auto px-6 -mt-10 relative z-10 pb-20">
+
+                {/* RESULTS CTA — shown prominently when published */}
+                {isPublished && (
+                    <div className="mb-10 p-8 rounded-3xl bg-gradient-to-r from-amber-950/60 to-yellow-950/40 border border-amber-500/20 flex flex-col md:flex-row items-center justify-between gap-6">
+                        <div className="flex items-center gap-5">
+                            <div className="w-16 h-16 rounded-2xl bg-amber-500/20 flex items-center justify-center shrink-0">
+                                <Trophy className="w-8 h-8 text-amber-400" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-1">Official Results Available</p>
+                                <h2 className="text-2xl font-black text-white font-outfit">Results &amp; Rankings are published!</h2>
+                                <p className="text-slate-400 text-sm font-medium mt-1">View the complete leaderboard, podium, and verify winner badges.</p>
+                            </div>
+                        </div>
+                        <Link href={`/events/${event.id}/results`} className="shrink-0">
+                            <Button className="h-14 px-8 rounded-2xl bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-widest text-xs gap-2 shadow-xl shadow-amber-500/20">
+                                <Trophy className="w-4 h-4" /> View Full Results
+                            </Button>
+                        </Link>
+                    </div>
+                )}
+
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
 
                     {/* Left Column: Details */}
@@ -138,8 +193,14 @@ export default async function EventDetailPage({ params }: Props) {
                                     <Trophy className="w-6 h-6 text-amber-400" />
                                 </div>
                                 <div>
-                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Winners Release</p>
-                                    <p className="text-xs font-bold text-white mt-1">TBA</p>
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Results</p>
+                                    <p className="text-xs font-bold text-white mt-1">
+                                        {isPublished ? (
+                                            <Link href={`/events/${event.id}/results`} className="text-amber-400 underline underline-offset-2">View Now</Link>
+                                        ) : event.scoring_deadline ? (
+                                            `Expected by ${format(new Date(event.scoring_deadline), "dd MMM yyyy")}`
+                                        ) : "TBA"}
+                                    </p>
                                 </div>
                             </div>
 
@@ -180,6 +241,94 @@ export default async function EventDetailPage({ params }: Props) {
                                 dangerouslySetInnerHTML={{ __html: event.full_rules || "" }}
                             />
                         </div>
+
+                        {/* PUBLIC SUBMISSIONS GALLERY — shown after event ends */}
+                        {isExpired && submissions.length > 0 && (
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h2 className="text-2xl font-black font-outfit uppercase tracking-tight text-white">Submissions Gallery</h2>
+                                        <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">
+                                            {submissions.length} entries ·
+                                            {votingOpen ? " Public voting open" : " Voting closed"}
+                                        </p>
+                                    </div>
+                                    {votingOpen && (
+                                        <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-rose-500/10 border border-rose-500/20">
+                                            <Heart className="w-3.5 h-3.5 text-rose-400" />
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-rose-400">Vote for your favourite</span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="grid gap-4">
+                                    {submissions.map((sub: any, idx: number) => {
+                                        const video = sub.submission_videos?.[0];
+                                        const isYT = video?.type === "youtube" && video?.youtube_url;
+                                        const ytId = isYT ? new URL(video.youtube_url).searchParams.get("v") || video.youtube_url.split("/").pop()?.split("?")[0] : null;
+
+                                        return (
+                                            <div key={sub.id} className="group bg-slate-900/40 rounded-[2rem] border border-slate-800 hover:border-indigo-500/30 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/5">
+                                                <div className="flex flex-col md:flex-row">
+                                                    {/* Thumbnail */}
+                                                    <div className="md:w-72 shrink-0 bg-slate-800 aspect-video md:aspect-auto relative overflow-hidden">
+                                                        {ytId ? (
+                                                            <img
+                                                                src={`https://img.youtube.com/vi/${ytId}/mqdefault.jpg`}
+                                                                alt={sub.title}
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center">
+                                                                <Video className="w-10 h-10 text-slate-700" />
+                                                            </div>
+                                                        )}
+                                                        {/* Rank badge for top 3 */}
+                                                        {idx < 3 && (
+                                                            <div className="absolute top-3 left-3 text-xl">
+                                                                {idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉"}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Info */}
+                                                    <div className="flex-1 p-6 flex flex-col justify-between">
+                                                        <div className="space-y-2">
+                                                            <h3 className="font-black text-white text-lg font-outfit">{sub.title || "Untitled Submission"}</h3>
+                                                            <p className="text-slate-400 text-xs font-medium">
+                                                                {sub.profiles?.full_name}
+                                                                {sub.profiles?.schools?.name && ` · ${sub.profiles.schools.name}`}
+                                                            </p>
+                                                            {sub.description && (
+                                                                <p className="text-slate-500 text-sm line-clamp-2">{sub.description}</p>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="flex items-center justify-between mt-4">
+                                                            <VoteButton
+                                                                submissionId={sub.id}
+                                                                initialCount={sub.voteCount}
+                                                                disabled={!votingOpen}
+                                                            />
+                                                            {isYT && (
+                                                                <a
+                                                                    href={video.youtube_url}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-indigo-400 transition-colors"
+                                                                >
+                                                                    <ExternalLink className="w-3.5 h-3.5" /> Watch
+                                                                </a>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Right Column: Sidebar */}
@@ -190,28 +339,54 @@ export default async function EventDetailPage({ params }: Props) {
                             </h3>
 
                             <div className="space-y-4">
-                                <p className="text-sm text-slate-400 font-medium">
-                                    To participate in this competition, please log in through your institutional portal.
-                                </p>
-
-                                <Link href="/login" className="block">
-                                    <Button className="w-full h-14 rounded-2xl bg-primary hover:bg-primary/90 text-white font-black uppercase tracking-widest text-xs shadow-lg shadow-primary/20">
-                                        Login to Apply
-                                    </Button>
-                                </Link>
+                                {isPublished ? (
+                                    <>
+                                        <p className="text-sm text-emerald-400 font-bold">✓ Results have been published!</p>
+                                        <Link href={`/events/${event.id}/results`} className="block">
+                                            <Button className="w-full h-14 rounded-2xl bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-widest text-xs shadow-lg shadow-amber-500/20">
+                                                <Trophy className="w-4 h-4 mr-2" /> View Results
+                                            </Button>
+                                        </Link>
+                                    </>
+                                ) : isExpired ? (
+                                    <>
+                                        <p className="text-sm text-slate-400 font-medium">Submissions are closed. Results will be published soon.</p>
+                                        {event.scoring_deadline && (
+                                            <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">
+                                                Expected by {format(new Date(event.scoring_deadline), "dd MMM yyyy")}
+                                            </p>
+                                        )}
+                                    </>
+                                ) : (
+                                    <>
+                                        <p className="text-sm text-slate-400 font-medium">
+                                            To participate in this competition, please log in through your institutional portal.
+                                        </p>
+                                        <Link href="/login" className="block">
+                                            <Button className="w-full h-14 rounded-2xl bg-primary hover:bg-primary/90 text-white font-black uppercase tracking-widest text-xs shadow-lg shadow-primary/20">
+                                                Login to Apply
+                                            </Button>
+                                        </Link>
+                                    </>
+                                )}
 
                                 <div className="pt-6 border-t border-slate-800">
                                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Institutional Requirements</p>
                                     <ul className="space-y-3">
                                         <li className="flex items-start gap-2 text-xs font-bold text-slate-300">
-                                            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" /> Open to all registered schools
+                                            <span className="text-emerald-500 mt-0.5">✓</span> Open to all registered schools
                                         </li>
                                         <li className="flex items-start gap-2 text-xs font-bold text-slate-300">
-                                            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" /> One entry per category
+                                            <span className="text-emerald-500 mt-0.5">✓</span> One entry per category
                                         </li>
                                         <li className="flex items-start gap-2 text-xs font-bold text-slate-300">
-                                            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" /> Media must be {event.media_type} format
+                                            <span className="text-emerald-500 mt-0.5">✓</span> Media must be {event.media_type} format
                                         </li>
+                                        {votingOpen && (
+                                            <li className="flex items-start gap-2 text-xs font-bold text-rose-300">
+                                                <Heart className="w-4 h-4 text-rose-400 shrink-0" /> Public votes count toward final score (20%)
+                                            </li>
+                                        )}
                                     </ul>
                                 </div>
                             </div>
@@ -221,24 +396,4 @@ export default async function EventDetailPage({ params }: Props) {
             </div>
         </div>
     );
-}
-
-function CheckCircle2(props: any) {
-    return (
-        <svg
-            {...props}
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-        >
-            <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
-            <path d="m9 12 2 2 4-4" />
-        </svg>
-    )
 }
