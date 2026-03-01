@@ -20,10 +20,7 @@ export default async function HomePage() {
         .select('*, schools(name)')
         .order('end_date', { ascending: true });
 
-    const filteredEvents = allUpcoming?.filter(event => {
-        if (!event.is_private || user?.role === 'super_admin') return true;
-        return event.school_id === userSchoolId;
-    }) ?? [];
+    const filteredEvents = allUpcoming ?? [];
 
     // 5 most recent events for carousel
     const carouselEvents = filteredEvents.slice(0, 5);

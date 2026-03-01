@@ -54,10 +54,7 @@ export default async function EventDetailPage({ params }: Props) {
     const user = await getCurrentUserAction();
     const userSchoolId = user?.school_id;
 
-    // Access control for private events
-    if (event.is_private && event.school_id !== userSchoolId && user?.role !== 'super_admin') {
-        notFound();
-    }
+    // Access control for private events removed so all events are public
 
     const isExpired = new Date(event.end_date) < new Date();
     const isPublished = event.results_status === "published";

@@ -18,11 +18,8 @@ export default async function CompetitionsPage() {
 
     const { data: allEvents } = await query;
 
-    // Client-side filtration for private events (easier than complex OR in Supabase RPC for this case)
-    const events = allEvents?.filter(event => {
-        if (!event.is_private || user?.role === 'super_admin') return true;
-        return event.school_id === userSchoolId;
-    });
+    // Bypass filtration so all events are visible to everyone
+    const events = allEvents;
 
     return (
         <div className="bg-[#080B1A] min-h-screen pb-32">
