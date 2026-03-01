@@ -94,12 +94,13 @@ export default async function EvaluatePage() {
     // ── Group submissions by event ──────────────────────────────────────────────
     const submissionsByEvent = new Map<string, { event: any; submissions: any[] }>();
     for (const sub of submissions || []) {
-        const eid = sub.events?.id;
+        const subAny = sub as any;
+        const eid = subAny.events?.id;
         if (!eid) continue;
         if (!submissionsByEvent.has(eid)) {
-            submissionsByEvent.set(eid, { event: sub.events, submissions: [] });
+            submissionsByEvent.set(eid, { event: subAny.events, submissions: [] });
         }
-        submissionsByEvent.get(eid)!.submissions.push(sub);
+        submissionsByEvent.get(eid)!.submissions.push(subAny);
     }
 
     // For super admin: build event list from submissions

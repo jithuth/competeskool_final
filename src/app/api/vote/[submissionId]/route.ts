@@ -1,8 +1,6 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 
-export const runtime = "edge";
-
 function hashIp(ip: string) {
     return crypto.createHash("sha256").update(ip + (process.env.BADGE_SECRET || "vote-salt")).digest("hex");
 }
