@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { appwriteStorage, APPWRITE_BUCKET_ID } from "@/lib/appwrite/client";
+import { ID } from "appwrite";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,21 +45,9 @@ export function SystemSettings({ settings }: SystemSettingsProps) {
             let finalLogoUrl = logoPreview;
 
             if (logoFile) {
-                const fileExt = logoFile.name.split('.').pop();
-                const fileName = `site-logo-${Date.now()}.${fileExt}`;
-                const filePath = `system/${fileName}`;
-
-                const { error: uploadError } = await supabase.storage
-                    .from('site-assets')
-                    .upload(filePath, logoFile);
-
-                if (uploadError) throw uploadError;
-
-                const { data: { publicUrl } } = supabase.storage
-                    .from('site-assets')
-                    .getPublicUrl(filePath);
-
-                finalLogoUrl = publicUrl;
+                const res = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), logoFile);
+                const publicUrl = appwriteStorage.getFileView(APPWRITE_BUCKET_ID, res.$id);
+                finalLogoUrl = publicUrl.toString();
             }
 
             const res = await saveSystemSettingsAction({

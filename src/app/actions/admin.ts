@@ -170,10 +170,15 @@ export async function saveUserProfileAction(data: any) {
 
     if (!canEdit) return { error: "Insufficient permissions" };
 
+    const updateData: any = { full_name: data.full_name };
+    if (profile.role === 'super_admin' && data.school_id) {
+        updateData.school_id = data.school_id;
+    }
+
     // Update Profile
     const { error: profileError } = await adminSupabase
         .from('profiles')
-        .update({ full_name: data.full_name })
+        .update(updateData)
         .eq('id', data.id);
 
     if (profileError) return { error: profileError.message };

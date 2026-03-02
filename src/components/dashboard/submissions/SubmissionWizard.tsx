@@ -6,6 +6,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { appwriteStorage, APPWRITE_BUCKET_ID } from "@/lib/appwrite/client";
+import { ID } from "appwrite";
 import { submissionSchema, SubmissionFormValues } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -109,18 +111,14 @@ async function uploadToYouTubeChunked(
 
 
 /**
- * Audio / Image — direct Supabase Storage upload (no compression needed).
+ * Audio / Image — direct Appwrite Storage upload (no compression needed).
  */
-async function uploadDirectToSupabase(
+async function uploadDirectToAppwrite(
     file: File,
     userId: string,
     onProgress: (pct: number) => void
 ): Promise<{ url: string; path: string }> {
-    const supabase = createClient();
-    const ext = file.name.split(".").pop() || "bin";
-    const storagePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-
-    // Supabase JS client doesn't expose upload progress natively,
+    // Appwrite JS client doesn't expose upload progress natively in the basic API,
     // so we fake a smooth progress bar while uploading.
     let fakeTick = 0;
     const fakeInterval = setInterval(() => {
@@ -129,21 +127,12 @@ async function uploadDirectToSupabase(
     }, 300);
 
     try {
-        const { error } = await supabase.storage
-            .from("submissions")
-            .upload(storagePath, file, { upsert: false });
-
+        const res = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), file);
         clearInterval(fakeInterval);
-
-        if (error) throw new Error(error.message);
-
         onProgress(100);
 
-        const { data: { publicUrl } } = supabase.storage
-            .from("submissions")
-            .getPublicUrl(storagePath);
-
-        return { url: publicUrl, path: storagePath };
+        const publicUrl = appwriteStorage.getFileView(APPWRITE_BUCKET_ID, res.$id);
+        return { url: publicUrl.toString(), path: res.$id };
     } catch (err) {
         clearInterval(fakeInterval);
         throw err;
@@ -249,10 +238,10 @@ export function SubmissionWizard({ events, initialEventId }: { events: any[]; in
                 });
                 toast.success("✅ Video uploaded successfully!");
             } else {
-                // ── Audio / image / document → direct Supabase upload ──
+                // ── Audio / image / document → direct Appwrite upload ──
                 setUploadPhase("uploading");
-                const result = await uploadDirectToSupabase(file, sessionInfo.userId!, setUploadProgress);
-                setProcessedMedia({ url: result.url, path: result.path, storageType: "supabase" });
+                const result = await uploadDirectToAppwrite(file, sessionInfo.userId!, setUploadProgress);
+                setProcessedMedia({ url: result.url, path: result.path, storageType: "supabase" }); // default storage enum
                 toast.success("File uploaded successfully!");
             }
 

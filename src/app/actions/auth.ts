@@ -41,6 +41,29 @@ export async function registerAction(values: any) {
     try {
         const supabase = await createClient();
 
+        // 1. Verify Teacher and School match strictly before proceeding
+        if (values.teacher_id && values.school_id) {
+            const { createClient: createSupabaseClient } = require('@supabase/supabase-js');
+            const adminSupabase = createSupabaseClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.SUPABASE_SERVICE_ROLE_KEY!
+            );
+
+            const { data: teacherProfile } = await adminSupabase
+                .from('profiles')
+                .select('school_id')
+                .eq('id', values.teacher_id)
+                .single();
+
+            if (!teacherProfile) {
+                return { error: "The selected teacher could not be found." };
+            }
+
+            if (teacherProfile.school_id !== values.school_id) {
+                return { error: "Security Mismatch: The selected teacher does not belong to the selected school." };
+            }
+        }
+
         // Register the user with Supabase Auth
         const { data: sessionData, error: signUpError } = await supabase.auth.signUp({
             email: values.email,

@@ -14,7 +14,12 @@ export type TeacherColumn = {
     created_at: string;
 };
 
-export const columns: ColumnDef<TeacherColumn>[] = [
+interface GetColumnsProps {
+    isSuperAdmin?: boolean;
+    schools?: { id: string, name: string }[];
+}
+
+export const getColumns = ({ isSuperAdmin, schools }: GetColumnsProps): ColumnDef<TeacherColumn>[] => [
     {
         accessorKey: "full_name",
         header: "Full Name",
@@ -49,6 +54,6 @@ export const columns: ColumnDef<TeacherColumn>[] = [
     },
     {
         id: "actions",
-        cell: ({ row }) => <TeacherActions teacher={row.original} />,
+        cell: ({ row }) => <TeacherActions teacher={row.original} isSuperAdmin={isSuperAdmin} schools={schools} />,
     },
 ];

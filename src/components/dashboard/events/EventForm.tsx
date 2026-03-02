@@ -6,6 +6,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { appwriteStorage, APPWRITE_BUCKET_ID } from "@/lib/appwrite/client";
+import { ID } from "appwrite";
 import { eventSchema, EventFormValues } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -126,21 +128,9 @@ export function EventForm({ initialData, onSuccess }: { initialData?: any, onSuc
 
             // 1. Upload Banner if exists
             if (bannerFile) {
-                const fileExt = bannerFile.name.split('.').pop();
-                const fileName = `${Math.random()}.${fileExt}`;
-                const filePath = `banners/${fileName}`;
-
-                const { error: uploadError } = await supabase.storage
-                    .from('event-banners')
-                    .upload(filePath, bannerFile);
-
-                if (uploadError) throw uploadError;
-
-                const { data: { publicUrl } } = supabase.storage
-                    .from('event-banners')
-                    .getPublicUrl(filePath);
-
-                finalBannerUrl = publicUrl;
+                const res = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), bannerFile);
+                const publicUrl = appwriteStorage.getFileView(APPWRITE_BUCKET_ID, res.$id);
+                finalBannerUrl = publicUrl.toString();
             }
 
             const dataToSave = {

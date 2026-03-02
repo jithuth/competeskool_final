@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { saveSiteSettingsAction, saveSeoConfigAction } from "@/app/actions/cms";
 import { createClient } from "@/lib/supabase/client";
+import { appwriteStorage, APPWRITE_BUCKET_ID } from "@/lib/appwrite/client";
+import { ID } from "appwrite";
 import {
     Layout,
     Search,
@@ -55,21 +57,9 @@ export function CMSForm({ initialSettings, initialSeo }: { initialSettings: any[
 
     const handleImageUpload = async (key: string, file: File) => {
         try {
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${key}-${Date.now()}.${fileExt}`;
-            const filePath = `hero/${fileName}`;
-
-            const { error: uploadError } = await supabase.storage
-                .from('public-assets')
-                .upload(filePath, file);
-
-            if (uploadError) throw uploadError;
-
-            const { data: { publicUrl } } = supabase.storage
-                .from('public-assets')
-                .getPublicUrl(filePath);
-
-            handleSettingChange(key, publicUrl);
+            const res = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), file);
+            const publicUrl = appwriteStorage.getFileView(APPWRITE_BUCKET_ID, res.$id);
+            handleSettingChange(key, publicUrl.toString());
             toast.success("Image uploaded successfully");
         } catch (error: any) {
             toast.error(error.message);

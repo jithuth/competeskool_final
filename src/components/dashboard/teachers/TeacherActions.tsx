@@ -35,9 +35,11 @@ import { TeacherColumn } from "./columns";
 
 interface TeacherActionsProps {
     teacher: TeacherColumn;
+    isSuperAdmin?: boolean;
+    schools?: { id: string, name: string }[];
 }
 
-export function TeacherActions({ teacher }: TeacherActionsProps) {
+export function TeacherActions({ teacher, isSuperAdmin, schools }: TeacherActionsProps) {
     const [loading, setLoading] = useState(false);
     const [showEditDialog, setShowEditDialog] = useState(false);
     const supabase = createClient();
@@ -159,6 +161,8 @@ export function TeacherActions({ teacher }: TeacherActionsProps) {
                     </DialogHeader>
                     <TeacherForm
                         initialData={teacher}
+                        isSuperAdmin={isSuperAdmin}
+                        schools={schools}
                         onSuccess={() => setShowEditDialog(false)}
                     />
                 </DialogContent>

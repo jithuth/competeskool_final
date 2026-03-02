@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { TeacherForm } from "@/components/dashboard/teachers/TeacherForm";
 import { DataTable } from "@/components/ui/data-table";
-import { columns } from "@/components/dashboard/teachers/columns";
+import { getColumns } from "@/components/dashboard/teachers/columns";
 import { redirect } from "next/navigation";
 
 export default async function TeachersPage() {
@@ -38,6 +38,12 @@ export default async function TeachersPage() {
           teachers (class_section)
         `)
         .eq("role", "teacher");
+
+    let schoolsList: { id: string, name: string }[] = [];
+    if (profile.role === 'super_admin') {
+        const { data: sData } = await supabase.from('schools').select('id, name').eq('status', 'approved').neq('id', '00000000-0000-0000-0000-000000000000').order('name');
+        if (sData) schoolsList = sData;
+    }
 
     if (profile.role === 'school_admin') {
         if (!schoolId) {
@@ -86,20 +92,19 @@ export default async function TeachersPage() {
                                 Create an account for a new teacher in your school.
                             </DialogDescription>
                         </DialogHeader>
-                        <TeacherForm schoolId={profile.school_id!} />
+                        <TeacherForm schoolId={profile.school_id!} isSuperAdmin={profile.role === 'super_admin'} schools={schoolsList} />
                     </DialogContent>
                 </Dialog>
             </div>
 
-            <DataTable
-                columns={columns}
-                data={formattedTeachers}
-                searchKey="full_name"
-                filters={[
-                    { column: "school_name", title: "School Name" },
-                    { column: "class_section", title: "Class & Section" }
-                ]}
+            <TeachersDataTable
+                isSuperAdmin={profile.role === 'super_admin'}
+                schoolsList={schoolsList}
+                formattedTeachers={formattedTeachers}
             />
         </div>
     );
 }
+
+// Client wrapper to execute getColumns on the client
+import { TeachersDataTable } from "./TeachersDataTable";

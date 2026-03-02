@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { saveUserProfileAction, createAdminUserAction } from "@/app/actions/admin";
 
 const teacherSchema = z.object({
@@ -18,11 +19,12 @@ const teacherSchema = z.object({
     email: z.string().email("Invalid email").optional().or(z.literal("")),
     password: z.string().min(6, "Password must be at least 6 characters").optional().or(z.literal("")),
     class_section: z.string().min(1, "Class and Section is required"),
+    school_id: z.string().optional(),
 });
 
 type TeacherFormValues = z.infer<typeof teacherSchema>;
 
-export function TeacherForm({ schoolId, initialData, onSuccess }: { schoolId?: string, initialData?: any, onSuccess?: () => void }) {
+export function TeacherForm({ schoolId, initialData, isSuperAdmin, schools, onSuccess }: { schoolId?: string, initialData?: any, isSuperAdmin?: boolean, schools?: { id: string, name: string }[], onSuccess?: () => void }) {
     const [loading, setLoading] = useState(false);
     const router = useRouter();
 
@@ -33,6 +35,7 @@ export function TeacherForm({ schoolId, initialData, onSuccess }: { schoolId?: s
             email: initialData?.email || "",
             password: "",
             class_section: initialData?.class_section || "",
+            school_id: initialData?.school_id || schoolId || "",
         },
     });
 
@@ -44,13 +47,14 @@ export function TeacherForm({ schoolId, initialData, onSuccess }: { schoolId?: s
             res = await saveUserProfileAction({
                 id: initialData.id,
                 full_name: values.full_name,
-                class_section: values.class_section
+                class_section: values.class_section,
+                school_id: values.school_id
             });
         } else {
             res = await createAdminUserAction({
                 ...values,
                 role: 'teacher',
-                school_id: schoolId,
+                school_id: isSuperAdmin ? values.school_id : schoolId,
             });
         }
 
@@ -113,6 +117,33 @@ export function TeacherForm({ schoolId, initialData, onSuccess }: { schoolId?: s
                             )}
                         />
                     </div>
+                )}
+
+                {isSuperAdmin && (
+                    <FormField
+                        control={form.control}
+                        name="school_id"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-xs font-bold uppercase tracking-widest text-slate-500">Assign to School</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value || ""}>
+                                    <FormControl>
+                                        <SelectTrigger className="h-12 rounded-xl border-slate-200 border-2">
+                                            <SelectValue placeholder="Select a school" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {schools?.map(school => (
+                                            <SelectItem key={school.id} value={school.id}>
+                                                {school.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
                 )}
 
                 <FormField
