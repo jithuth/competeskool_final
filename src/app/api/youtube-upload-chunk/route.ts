@@ -13,16 +13,19 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createSessionClient } from "@/lib/appwrite/ssr";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
     // 1. Auth
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    try {
+        const { account } = await createSessionClient();
+        await account.get();
+    } catch (e) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     // 2. Get required headers
     const uploadUrl = req.headers.get("x-upload-url");

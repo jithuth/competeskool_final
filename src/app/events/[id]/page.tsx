@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
+import { APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { Calendar, ScrollText, Share2, Award, Info, ArrowLeft, Trophy, Clock, Video, Image as ImageIcon, Music } from "lucide-react";
@@ -16,13 +17,12 @@ export async function generateMetadata(
     parent: ResolvingMetadata
 ): Promise<Metadata> {
     const id = (await params).id;
-    const supabase = await createClient();
+    const adminAppwrite = getAppwriteAdmin();
 
-    const { data: event } = await supabase
-        .from("events")
-        .select("*")
-        .eq("id", id)
-        .single();
+    let event: any = null;
+    try {
+        event = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "events", id);
+    } catch (e) { }
 
     if (!event) return { title: "Event Not Found" };
 
@@ -39,13 +39,12 @@ export async function generateMetadata(
 
 export default async function EventDetailPage({ params }: Props) {
     const id = (await params).id;
-    const supabase = await createClient();
+    const adminAppwrite = getAppwriteAdmin();
 
-    const { data: event } = await supabase
-        .from("events")
-        .select("*")
-        .eq("id", id)
-        .single();
+    let event: any = null;
+    try {
+        event = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "events", id);
+    } catch (e) { }
 
     if (!event) notFound();
 

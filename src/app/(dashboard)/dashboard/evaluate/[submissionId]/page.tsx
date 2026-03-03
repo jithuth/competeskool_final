@@ -1,51 +1,90 @@
-import { createClient } from "@/lib/supabase/server";
+import { createSessionClient, APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
 import { redirect, notFound } from "next/navigation";
 import { JudgeScoringForm } from "@/components/dashboard/evaluate/JudgeScoringForm";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { MediaPlayer } from "@/components/shared/MediaPlayer";
+import { Query } from "node-appwrite";
 
 export default async function EvaluateSubmissionPage({ params }: { params: Promise<{ submissionId: string }> }) {
     const { submissionId } = await params;
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+
+    let user;
+    try {
+        const { account } = await createSessionClient();
+        user = await account.get();
+    } catch (e) {
+        redirect("/login");
+    }
+
     if (!user) redirect("/login");
 
-    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    const adminAppwrite = getAppwriteAdmin();
+
+    let profile: any = null;
+    try {
+        profile = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", user.$id);
+    } catch (e) { }
+
     if (profile?.role !== "judge" && profile?.role !== "super_admin") redirect("/dashboard");
 
     // Get submission details
-    const { data: submission } = await supabase
-        .from("submissions")
-        .select(`
-            id, title, description, created_at, student_id,
-            events!submissions_event_id_fkey(id, title, results_status),
-            profiles!submissions_student_id_fkey(full_name, email, schools(name)),
-            submission_videos(*)
-        `)
-        .eq("id", submissionId)
-        .single();
+    let submission: any = null;
+    try {
+        submission = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "submissions", submissionId);
+    } catch (e) {
+        notFound();
+    }
 
     if (!submission) notFound();
 
-    const event = (submission as any).events;
-    const student = (submission as any).profiles;
-    const videos: any[] = (submission as any).submission_videos || [];
+    // Fetch relations
+    let event: any = {};
+    let student: any = {};
+    let videos: any[] = [];
+
+    try {
+        event = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "events", submission.event_id);
+    } catch (e) { }
+
+    try {
+        student = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", submission.student_id);
+        if (student.school_id) {
+            try {
+                student.schools = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "schools", student.school_id);
+            } catch (e) { }
+        }
+    } catch (e) { }
+
+    try {
+        const videosRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "submission_videos", [
+            Query.equal("submission_id", submission.$id)
+        ]);
+        videos = JSON.parse(JSON.stringify(videosRes.documents));
+    } catch (e) { }
 
     // Get rubric criteria for this event
-    const { data: criteria } = await supabase
-        .from("evaluation_criteria")
-        .select("*")
-        .eq("event_id", event.id)
-        .order("display_order");
+    let criteria: any[] = [];
+    try {
+        const criteriaRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "evaluation_criteria", [
+            Query.equal("event_id", event.$id),
+            // TODO: fix sort if sorting column doesnt work
+            Query.orderAsc("display_order")
+        ]);
+        criteria = JSON.parse(JSON.stringify(criteriaRes.documents));
+    } catch (e) { }
 
     // Get existing scores by this judge
-    const { data: existingScores } = await supabase
-        .from("submission_scores")
-        .select("criterion_id, score, feedback")
-        .eq("submission_id", submissionId)
-        .eq("judge_id", user.id);
+    let existingScores: any[] = [];
+    try {
+        const scoresRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "submission_scores", [
+            Query.equal("submission_id", submissionId),
+            Query.equal("judge_id", user.$id)
+        ]);
+        existingScores = JSON.parse(JSON.stringify(scoresRes.documents));
+    } catch (e) { }
 
     const isLocked = ["scoring_locked", "published"].includes(event.results_status);
     const noCriteria = !criteria || criteria.length === 0;
@@ -83,7 +122,7 @@ export default async function EvaluateSubmissionPage({ params }: { params: Promi
                         {videos.length > 0 ? (
                             <div className="space-y-3">
                                 {videos.map((v: any) => (
-                                    <MediaPlayer key={v.id} video={v} />
+                                    <MediaPlayer key={v.$id} video={v} />
                                 ))}
                             </div>
                         ) : (
@@ -101,7 +140,7 @@ export default async function EvaluateSubmissionPage({ params }: { params: Promi
                         )}
 
                         <div className="pt-2 border-t text-[10px] text-slate-300 font-bold uppercase tracking-widest">
-                            Submitted {new Date(submission.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
+                            Submitted {new Date(submission.$createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
                         </div>
                     </div>
                 </div>

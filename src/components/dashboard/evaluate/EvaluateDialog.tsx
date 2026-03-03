@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
+import { evaluateSubmissionAction } from "@/app/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,7 +15,6 @@ export function EvaluateDialog({ submission, onSuccess }: { submission: any, onS
     const [score, setScore] = useState(submission.score || "");
     const [feedback, setFeedback] = useState(submission.feedback || "");
     const router = useRouter();
-    const supabase = createClient();
 
     async function handleSave() {
         if (!score || isNaN(Number(score))) {
@@ -24,17 +23,10 @@ export function EvaluateDialog({ submission, onSuccess }: { submission: any, onS
         }
 
         setLoading(true);
-        const { error } = await supabase
-            .from("submissions")
-            .update({
-                score: Number(score),
-                feedback,
-                status: 'reviewed'
-            })
-            .eq("id", submission.id);
+        const res = await evaluateSubmissionAction(submission.id, Number(score), feedback);
 
-        if (error) {
-            toast.error(error.message);
+        if (res.error) {
+            toast.error(res.error);
             setLoading(false);
             return;
         }

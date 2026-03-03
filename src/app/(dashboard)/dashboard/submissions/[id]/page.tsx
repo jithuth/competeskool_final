@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
+import { createSessionClient, APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
 import { notFound, redirect } from "next/navigation";
 import { format } from "date-fns";
 import { Calendar, User, Trophy, ArrowLeft, Video, ExternalLink, MessageSquare, Download, CheckCircle2, Clock } from "lucide-react";
@@ -7,37 +8,68 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Query } from "node-appwrite";
 
 export default async function SubmissionDetailPage({ params }: { params: { id: string } }) {
     const { id } = params;
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+
+    let user;
+    try {
+        const { account } = await createSessionClient();
+        user = await account.get();
+    } catch (e) {
+        redirect("/login");
+    }
 
     if (!user) redirect("/login");
 
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role, school_id")
-        .eq("id", user.id)
-        .single();
+    const adminAppwrite = getAppwriteAdmin();
+
+    let profile: any = null;
+    try {
+        profile = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", user.$id);
+    } catch (e) {
+        redirect("/dashboard");
+    }
 
     if (!profile) redirect("/dashboard");
 
-    const { data: submission, error } = await supabase
-        .from("submissions")
-        .select(`
-            *,
-            events (*, schools(name)),
-            profiles (full_name, email, school_id, schools(name)),
-            submission_videos (*)
-        `)
-        .eq("id", id)
-        .single();
+    let submission: any = null;
+    try {
+        submission = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "submissions", id);
 
-    if (error || !submission) notFound();
+        // Fetch relations
+        try {
+            const ev = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "events", submission.event_id);
+            submission.events = ev;
+        } catch (e) { }
+
+        try {
+            const prf = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", submission.student_id);
+            if (prf.school_id) {
+                try {
+                    const sch = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "schools", prf.school_id);
+                    prf.schools = sch;
+                } catch (e) { }
+            }
+            submission.profiles = prf;
+        } catch (e) { }
+
+        try {
+            const videosRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "submission_videos", [
+                Query.equal("submission_id", submission.$id)
+            ]);
+            submission.submission_videos = videosRes.documents;
+        } catch (e) { }
+
+    } catch (e) {
+        notFound();
+    }
+
+    if (!submission) notFound();
 
     // Access Control
-    const isOwner = submission.student_id === user.id;
+    const isOwner = submission.student_id === user.$id;
     const isSuperAdmin = profile.role === 'super_admin';
     const isJudge = profile.role === 'judge';
     const isSchoolAdmin = profile.role === 'school_admin' && profile.school_id === submission.profiles?.school_id;
@@ -65,7 +97,7 @@ export default async function SubmissionDetailPage({ params }: { params: { id: s
                                 {submission.status}
                             </Badge>
                             <span className="text-xs text-muted-foreground font-medium flex items-center gap-1">
-                                <Clock className="w-3.5 h-3.5" /> Submitted {format(new Date(submission.created_at), "MMM dd, yyyy")}
+                                <Clock className="w-3.5 h-3.5" /> Submitted {format(new Date(submission.$createdAt), "MMM dd, yyyy")}
                             </span>
                         </div>
                         <h1 className="text-4xl font-black font-outfit uppercase tracking-tight text-slate-800">

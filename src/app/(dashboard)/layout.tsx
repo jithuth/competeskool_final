@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createSessionClient, APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { UserRole } from "@/lib/types";
@@ -14,18 +14,19 @@ export default async function DashboardLayout({
 }: {
     children: React.ReactNode;
 }) {
-    const supabase = await createClient();
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-    if (!user || userError) {
-        redirect("/login");
+    let user = null;
+    let profile = null;
+    try {
+        const { account, databases } = await createSessionClient();
+        user = await account.get();
+        profile = await databases.getDocument(APPWRITE_DATABASE_ID, "profiles", user.$id);
+    } catch (err) {
+        // Not logged in or expired
     }
 
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role, full_name, email")
-        .eq("id", user.id)
-        .single();
+    if (!user) {
+        redirect("/login");
+    }
 
     const siteSettings = await getSiteSettings();
     const role = (profile?.role || "student") as UserRole;

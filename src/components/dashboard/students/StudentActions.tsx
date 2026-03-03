@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
+import { updateProfileStatusAction, deleteProfileAction } from "@/app/actions/admin";
 import { useRouter } from "next/navigation";
 import { StudentColumn } from "./columns";
 import { sendApprovalNotification } from "@/lib/notifications";
@@ -44,18 +44,14 @@ interface StudentActionsProps {
 export function StudentActions({ student }: StudentActionsProps) {
     const [loading, setLoading] = useState(false);
     const [showEditDialog, setShowEditDialog] = useState(false);
-    const supabase = createClient();
     const router = useRouter();
 
     const updateStatus = async (status: 'approved' | 'rejected') => {
         setLoading(true);
-        const { error } = await supabase
-            .from("profiles")
-            .update({ status })
-            .eq("id", student.id);
+        const res = await updateProfileStatusAction(student.id, status);
 
-        if (error) {
-            toast.error(error.message);
+        if (res.error) {
+            toast.error(res.error);
             setLoading(false);
             return;
         }
@@ -73,14 +69,10 @@ export function StudentActions({ student }: StudentActionsProps) {
         if (!confirm("Are you sure you want to delete this student profile? This action is irreversible.")) return;
 
         setLoading(true);
+        const res = await deleteProfileAction(student.id);
 
-        const { error } = await supabase
-            .from("profiles")
-            .delete()
-            .eq("id", student.id);
-
-        if (error) {
-            toast.error("Failed to delete the profile.");
+        if (res.error) {
+            toast.error(res.error);
             setLoading(false);
             return;
         }

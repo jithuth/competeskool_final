@@ -1,10 +1,12 @@
-import { createClient } from "@/lib/supabase/server";
+import { createSessionClient, APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Trophy, Share2, Download, QrCode, ExternalLink, Star, Award } from "lucide-react";
 import { BadgeShareButtons } from "@/components/dashboard/results/BadgeShareButtons";
+import { Query } from "node-appwrite";
 
 const TIER_CONFIG = {
     gold: { label: "Gold", emoji: "🥇", bg: "from-amber-50 to-yellow-50", border: "border-amber-200", accent: "text-amber-600", pill: "bg-amber-100 text-amber-700 border-amber-200" },
@@ -14,29 +16,66 @@ const TIER_CONFIG = {
 };
 
 export default async function MyResultsPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    let user;
+    try {
+        const { account } = await createSessionClient();
+        user = await account.get();
+    } catch (e) {
+        redirect("/login");
+    }
+
     if (!user) redirect("/login");
 
-    const { data: profile } = await supabase.from("profiles").select("role, full_name").eq("id", user.id).single();
+    const adminAppwrite = getAppwriteAdmin();
+
+    let profile: any = null;
+    try {
+        profile = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", user.$id);
+    } catch (e) { }
+
     if (profile?.role !== "student") redirect("/dashboard");
 
     // Fetch all badges for this student
-    const { data: badges } = await supabase
-        .from("badges")
-        .select("*")
-        .eq("student_id", user.id)
-        .order("issued_at", { ascending: false });
+    let badges: any[] = [];
+    try {
+        const badgesRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "badges", [
+            Query.equal("student_id", user.$id),
+            // Fallback order since issued_at might not exist in Appwrite yet depending on schema mapping
+            Query.orderDesc("issued_at")
+        ]);
+        badges = badgesRes.documents;
+    } catch (e) { }
 
     // Fetch detailed scores for each result
-    const { data: results } = await supabase
-        .from("submission_results")
-        .select(`
-            id, weighted_score, rank, tier, computed_at,
-            submissions!inner(title, event_id, events(title, results_status))
-        `)
-        .eq("student_id", user.id)
-        .order("computed_at", { ascending: false });
+    let results: any[] = [];
+    try {
+        const resultsRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "submission_results", [
+            Query.equal("student_id", user.$id),
+            Query.orderDesc("computed_at")
+        ]);
+
+        results = await Promise.all(
+            resultsRes.documents.map(async (res: any) => {
+                let sub = null;
+                try {
+                    sub = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "submissions", res.submission_id);
+                    let ev = null;
+                    if (sub) {
+                        try {
+                            ev = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "events", sub.event_id);
+                            sub.events = ev;
+                        } catch (e) { }
+                    }
+                } catch (e) { }
+
+                return {
+                    ...res,
+                    id: res.$id,
+                    submissions: sub
+                }
+            })
+        );
+    } catch (e) { }
 
     const goldCount = badges?.filter(b => b.tier === "gold").length || 0;
     const silverCount = badges?.filter(b => b.tier === "silver").length || 0;
@@ -102,7 +141,7 @@ export default async function MyResultsPage() {
                             const issueDate = new Date(badge.issued_at).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" });
 
                             return (
-                                <div key={badge.id} className={`rounded-[2rem] border-2 ${cfg.border} bg-gradient-to-br ${cfg.bg} overflow-hidden group hover:shadow-xl transition-all duration-300`}>
+                                <div key={badge.$id} className={`rounded-[2rem] border-2 ${cfg.border} bg-gradient-to-br ${cfg.bg} overflow-hidden group hover:shadow-xl transition-all duration-300`}>
                                     {/* Badge Image Preview */}
                                     <div className="relative">
                                         {/* eslint-disable-next-line @next/next/no-img-element */}

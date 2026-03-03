@@ -1,35 +1,58 @@
-import { createClient } from "@/lib/supabase/server";
+import { createSessionClient, APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
 import { SubmissionsTable } from "@/components/dashboard/submissions/SubmissionsTable";
 import { redirect } from "next/navigation";
 import { Trophy, Search, Filter, LayoutGrid } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Query } from "node-appwrite";
 
 export default async function SubmissionsRegistryPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    let user;
+    try {
+        const { account } = await createSessionClient();
+        user = await account.get();
+    } catch (e) {
+        redirect("/login");
+    }
 
     if (!user) {
         redirect("/login");
     }
 
+    const adminAppwrite = getAppwriteAdmin();
+
     // Fetch user profile to determine role
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
+    let profile: any = null;
+    try {
+        const profileRaw = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", user.$id);
+        profile = JSON.parse(JSON.stringify(profileRaw));
+    } catch (e) { }
 
     // Fetch all submissions with events and profiles
-    const { data: submissions } = await supabase
-        .from("submissions")
-        .select(`
-            *,
-            events (title),
-            profiles (full_name, avatar_url),
-            submission_videos (*)
-        `)
-        .order("created_at", { ascending: false });
+    let submissions: any[] = [];
+    try {
+        const res = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "submissions", [
+            Query.orderDesc("$createdAt"), Query.limit(100)
+        ]);
+
+        submissions = JSON.parse(JSON.stringify(res.documents));
+
+        for (const sub of submissions) {
+            sub.id = sub.$id;
+            try {
+                const ev = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "events", sub.event_id);
+                sub.events = { title: ev.title };
+            } catch (e) { }
+
+            try {
+                const prf = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", sub.student_id);
+                sub.profiles = { full_name: prf.full_name, avatar_url: prf.avatar_url };
+            } catch (e) { }
+
+            sub.created_at = sub.$createdAt;
+        }
+    } catch (e) { }
 
     return (
         <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -80,7 +103,7 @@ export default async function SubmissionsRegistryPage() {
                     <div>
                         <p className="text-[9px] font-black uppercase tracking-widest text-emerald-400">Reviewed Entries</p>
                         <p className="text-3xl font-black text-slate-900 leading-none mt-1">
-                            {submissions?.filter(s => s.status === 'reviewed').length || 0}
+                            {submissions?.filter((s: any) => s.status === 'reviewed').length || 0}
                         </p>
                     </div>
                 </div>
@@ -92,7 +115,7 @@ export default async function SubmissionsRegistryPage() {
                     <div>
                         <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Active Competitions</p>
                         <p className="text-3xl font-black text-slate-900 leading-none mt-1">
-                            {new Set(submissions?.map(s => s.event_id)).size}
+                            {new Set(submissions?.map((s: any) => s.event_id)).size}
                         </p>
                     </div>
                 </div>

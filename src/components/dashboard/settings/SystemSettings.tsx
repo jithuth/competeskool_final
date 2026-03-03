@@ -3,14 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
-import { appwriteStorage, APPWRITE_BUCKET_ID } from "@/lib/appwrite/client";
 import { ID } from "appwrite";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Upload, ImageIcon, Sparkles } from "lucide-react";
-import { saveSystemSettingsAction } from "@/app/actions/admin";
+import { saveSystemSettingsAction, uploadFileAction } from "@/app/actions/admin";
 import Image from "next/image";
 
 interface SystemSettingsProps {
@@ -29,7 +27,6 @@ export function SystemSettings({ settings }: SystemSettingsProps) {
     const [logoFile, setLogoFile] = useState<File | null>(null);
     const [logoPreview, setLogoPreview] = useState<string>(settings.site_logo || "");
     const router = useRouter();
-    const supabase = createClient();
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -45,9 +42,11 @@ export function SystemSettings({ settings }: SystemSettingsProps) {
             let finalLogoUrl = logoPreview;
 
             if (logoFile) {
-                const res = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), logoFile);
-                const publicUrl = appwriteStorage.getFileView(APPWRITE_BUCKET_ID, res.$id);
-                finalLogoUrl = publicUrl.toString();
+                const formData = new FormData();
+                formData.append("file", logoFile);
+                const uploadRes = await uploadFileAction(formData);
+                if (uploadRes.error) throw new Error(uploadRes.error);
+                finalLogoUrl = uploadRes.url!;
             }
 
             const res = await saveSystemSettingsAction({

@@ -1,17 +1,27 @@
-import { createClient } from "@/lib/supabase/server";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
+import { APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
 import { Plus, School as SchoolIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { SchoolForm } from "@/components/dashboard/schools/SchoolForm";
 import { DataTable } from "@/components/ui/data-table";
 import { columns } from "@/components/dashboard/schools/columns";
+import { Query } from "node-appwrite";
 
 export default async function SchoolsPage() {
-    const supabase = await createClient();
-    const { data: schools } = await supabase
-        .from("schools")
-        .select("*")
-        .order("created_at", { ascending: false });
+    let schools: any[] = [];
+    try {
+        const adminAppwrite = getAppwriteAdmin();
+        const res = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "schools", [
+            Query.orderDesc("$createdAt")
+        ]);
+        schools = JSON.parse(JSON.stringify(res.documents)).map((doc: any) => ({
+            ...doc,
+            id: doc.$id
+        }));
+    } catch (e) {
+        console.error("Error fetching schools", e);
+    }
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">

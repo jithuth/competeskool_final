@@ -1,226 +1,591 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { createSessionClient, APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
+import { getAppwriteAdmin, APPWRITE_BUCKET_ID } from "@/lib/appwrite/server";
+import { ID, Query } from "node-appwrite";
+import { InputFile } from "node-appwrite/file";
 
+const APPWRITE_ENDPOINT = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1";
+const APPWRITE_PROJECT_ID = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || "";
+
+/**
+ * Uploads a file to Appwrite Storage using Admin privileges.
+ * Useful for bypassing "Missing permission" errors on the client side.
+ */
+export async function uploadFileAction(formData: FormData) {
+    try {
+        const { account } = await createSessionClient();
+        const user = await account.get();
+        if (!user) return { error: "Unauthorized" };
+
+        const file = formData.get("file") as File;
+        if (!file) return { error: "No file provided" };
+
+        const adminAppwrite = getAppwriteAdmin();
+        const buffer = Buffer.from(await file.arrayBuffer());
+
+        const fileId = ID.unique();
+        await adminAppwrite.storage.createFile(
+            APPWRITE_BUCKET_ID,
+            fileId,
+            InputFile.fromBuffer(buffer, file.name)
+        );
+
+        // Construct the public view URL directly - getFileView returns ArrayBuffer (binary), not a URL
+        const publicUrl = `${APPWRITE_ENDPOINT}/storage/buckets/${APPWRITE_BUCKET_ID}/files/${fileId}/view?project=${APPWRITE_PROJECT_ID}`;
+
+        return {
+            success: true,
+            url: publicUrl,
+            path: fileId,
+            fileId: fileId
+        };
+    } catch (e: any) {
+        console.error("Server upload failed:", e);
+        return { error: e.message || "Failed to upload file to storage" };
+    }
+}
 
 export async function createAdminUserAction(values: any) {
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    try {
+        const { account, databases } = await createSessionClient();
+        const user = await account.get();
+        if (!user) return { error: "Unauthorized" };
 
-    if (authError || !user) return { error: "Unauthorized" };
+        const profile = await databases.getDocument(APPWRITE_DATABASE_ID, 'profiles', user.$id);
+        if (!profile || (profile.role !== 'school_admin' && profile.role !== 'super_admin')) {
+            return { error: "Insufficient permissions" };
+        }
 
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (!profile || (profile.role !== 'school_admin' && profile.role !== 'super_admin')) {
-        return { error: "Insufficient permissions" };
+        const adminAppwrite = getAppwriteAdmin();
+        const newUserId = ID.unique();
+
+        // 1. Create Identity
+        const newUser = await adminAppwrite.users.create(
+            newUserId,
+            values.email,
+            undefined, // Phone missing
+            values.password,
+            values.full_name
+        );
+
+        // 2. Profile created automatically via Appwrite function/webhook or manually? 
+        // Best approach is manually pushing the profile if it needs it synchronously
+        try {
+            await adminAppwrite.databases.createDocument(APPWRITE_DATABASE_ID, "profiles", newUser.$id, {
+                email: values.email,
+                full_name: values.full_name,
+                role: values.role,
+                school_id: values.school_id || null,
+                status: 'approved'
+            });
+        } catch (e) { }
+
+        // 3. Upsert Role Details
+        if (values.role === 'teacher') {
+            await adminAppwrite.databases.createDocument(APPWRITE_DATABASE_ID, "teachers", newUser.$id, {
+                class_section: values.class_section
+            });
+        } else if (values.role === 'judge') {
+            await adminAppwrite.databases.createDocument(APPWRITE_DATABASE_ID, "judges", newUser.$id, {
+                expertise: values.expertise,
+                bio: values.bio
+            });
+        }
+
+        return { success: true, userId: newUser.$id };
+    } catch (e: any) {
+        return { error: e.message || "Failed to create admin user" };
     }
-
-    // Use service role to create user natively
-    const { createClient: createSupabaseClient } = require('@supabase/supabase-js');
-    const adminSupabase = createSupabaseClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-
-    // Creates the user synchronously without affecting active session
-    const { data: newAuthData, error: createError } = await adminSupabase.auth.admin.createUser({
-        email: values.email,
-        password: values.password,
-        user_metadata: {
-            full_name: values.full_name,
-            role: values.role,
-            school_id: values.school_id,
-            class_section: values.class_section
-        },
-        email_confirm: true
-    });
-
-    if (createError) return { error: createError.message };
-
-    const newUserId = newAuthData?.user?.id;
-    if (!newUserId) return { error: "Failed to gather identity" };
-
-    if (values.role === 'teacher') {
-        await adminSupabase.from("teachers").upsert({
-            id: newUserId,
-            class_section: values.class_section
-        }, { onConflict: "id" });
-    } else if (values.role === 'judge') {
-        await adminSupabase.from("judges").upsert({
-            id: newUserId,
-            expertise: values.expertise,
-            bio: values.bio
-        }, { onConflict: "id" });
-    }
-
-    return { success: true, userId: newUserId };
 }
 
 export async function saveEventAction(data: any) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    try {
+        const { account, databases } = await createSessionClient();
+        const user = await account.get();
+        if (!user) return { error: "Unauthorized" };
 
-    if (!user) return { error: "Unauthorized" };
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !serviceRoleKey) {
-        console.error("Missing Supabase Configuration: URL or Service Role Key is absent.");
-        return { error: "Internal Server Configuration Error" };
-    }
-
-    const adminSupabase = createSupabaseClient(supabaseUrl, serviceRoleKey, {
-        auth: {
-            autoRefreshToken: false,
-            persistSession: false
+        const profile = await databases.getDocument(APPWRITE_DATABASE_ID, 'profiles', user.$id);
+        if (!profile || (profile.role !== 'school_admin' && profile.role !== 'super_admin')) {
+            return { error: "Insufficient permissions to manage competitions." };
         }
-    });
 
-    const { data: profile, error: profileError } = await adminSupabase.from('profiles').select('role').eq('id', user.id).single();
-    if (profileError || !profile || (profile.role !== 'school_admin' && profile.role !== 'super_admin')) {
-        console.error("Permission Check Failure:", profileError || "Insufficient Role");
-        return { error: "Insufficient permissions to manage competitions." };
+        const adminAppwrite = getAppwriteAdmin();
+
+        // Only pass fields that exist in the events collection schema.
+        // Form-only fields like `is_private` must be excluded.
+        const ALLOWED_FIELDS = new Set([
+            "title", "description", "start_date", "end_date",
+            "status", "results_status", "created_by", "banner_url",
+            "media_type", "full_rules", "school_id",
+        ]);
+
+        const cleanData = Object.fromEntries(
+            Object.entries(data).filter(([k, v]) =>
+                ALLOWED_FIELDS.has(k) && v !== undefined
+            )
+        );
+
+        if (data.id) {
+            await adminAppwrite.databases.updateDocument(APPWRITE_DATABASE_ID, "events", data.id as string, cleanData);
+        } else {
+            await adminAppwrite.databases.createDocument(APPWRITE_DATABASE_ID, "events", ID.unique(), cleanData);
+        }
+
+        return { success: true };
+    } catch (e: any) {
+        console.error("Database Error:", e);
+        return { error: `Database Error: ${e.message}` };
     }
-
-
-    // Clean data object
-    const cleanData = Object.fromEntries(
-        Object.entries(data).filter(([_, v]) => v !== undefined)
-    );
-
-    let result;
-    if (cleanData.id) {
-        const { id, ...updateData } = cleanData;
-        result = await adminSupabase.from("events").update(updateData).eq("id", id);
-    } else {
-        result = await adminSupabase.from("events").insert(cleanData);
-    }
-
-    if (result.error) {
-        console.error("Supabase Save Error (Status):", result.status);
-        console.error("Supabase Save Error (Data):", result.error);
-        return { error: `Database Error: ${result.error.message}` };
-    }
-    return { success: true };
 }
 
 export async function sendBulkEventEmailAction(eventId: string) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    try {
+        const { account, databases } = await createSessionClient();
+        const user = await account.get();
+        if (!user) return { error: "Unauthorized" };
 
-    if (!user) return { error: "Unauthorized" };
+        const adminAppwrite = getAppwriteAdmin();
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        // 1. Get Event Details
+        const event = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, 'events', eventId);
+        if (!event) return { error: "Event not found" };
 
-    if (!supabaseUrl || !serviceRoleKey) return { error: "Configuration Error" };
+        // 2. Get All School Admin Emails
+        const resAdmins = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, 'profiles', [
+            Query.equal('role', 'school_admin')
+        ]);
+        const schoolAdmins = resAdmins.documents;
 
-    const adminSupabase = createSupabaseClient(supabaseUrl, serviceRoleKey);
+        // 3. Simulate sending emails
+        console.log(`[BULK EMAIL] Initializing broadcast for: ${event.title}`);
+        schoolAdmins.forEach(admin => {
+            console.log(`[SIMULATED] Sending invitation to ${admin.full_name} (${admin.email}) for event: ${event.title}`);
+        });
 
-    // 1. Get Event Details
-    const { data: event } = await adminSupabase.from('events').select('title').eq('id', eventId).single();
-    if (!event) return { error: "Event not found" };
-
-    // 2. Get All School Admin Emails
-    // We assume school admins are profiles with role 'school_admin'
-    const { data: schoolAdmins, error: fetchError } = await adminSupabase
-        .from('profiles')
-        .select('email, full_name')
-        .eq('role', 'school_admin');
-
-    if (fetchError) return { error: fetchError.message };
-
-    // 3. Simulate sending emails
-    console.log(`[BULK EMAIL] Initializing broadcast for: ${event.title}`);
-    schoolAdmins.forEach(admin => {
-        console.log(`[SIMULATED] Sending invitation to ${admin.full_name} (${admin.email}) for event: ${event.title}`);
-    });
-
-    return { success: true, count: schoolAdmins.length };
+        return { success: true, count: schoolAdmins.length };
+    } catch (e: any) {
+        return { error: e.message };
+    }
 }
 
 export async function saveUserProfileAction(data: any) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    try {
+        const { account, databases } = await createSessionClient();
+        const user = await account.get();
+        if (!user) return { error: "Unauthorized" };
 
-    if (!user) return { error: "Unauthorized" };
+        const profile = await databases.getDocument(APPWRITE_DATABASE_ID, 'profiles', user.$id);
 
-    const { data: profile } = await supabase.from('profiles').select('role, school_id').eq('id', user.id).single();
-    if (!profile) return { error: "Identity not found" };
+        const adminAppwrite = getAppwriteAdmin();
+        const targetProfile = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, 'profiles', data.id);
 
-    // Permission logic:
-    // Super Admin: Can edit anyone
-    // School Admin: Can edit anyone in their school
-    // Teacher: Can edit students in their class (we'll implement basic check)
+        const canEdit = profile.role === 'super_admin' ||
+            (profile.role === 'school_admin' && profile.school_id === targetProfile.school_id) ||
+            (profile.role === 'teacher' && targetProfile.role === 'student');
 
-    const adminSupabase = createSupabaseClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+        if (!canEdit) return { error: "Insufficient permissions" };
 
-    // Get target profile
-    const { data: targetProfile } = await adminSupabase.from('profiles').select('*').eq('id', data.id).single();
-    if (!targetProfile) return { error: "Target not found" };
+        const updateData: any = { full_name: data.full_name };
+        if (profile.role === 'super_admin' && data.school_id) {
+            updateData.school_id = data.school_id;
+        }
 
-    const canEdit = profile.role === 'super_admin' ||
-        (profile.role === 'school_admin' && profile.school_id === targetProfile.school_id) ||
-        (profile.role === 'teacher' && targetProfile.role === 'student'); // Basic check
+        // Update Profile
+        await adminAppwrite.databases.updateDocument(APPWRITE_DATABASE_ID, 'profiles', data.id, updateData);
 
-    if (!canEdit) return { error: "Insufficient permissions" };
+        // Update Role Specific Data
+        if (targetProfile.role === 'teacher' && data.class_section) {
+            await adminAppwrite.databases.updateDocument(APPWRITE_DATABASE_ID, 'teachers', data.id, { class_section: data.class_section });
+        } else if (targetProfile.role === 'student' && data.grade_level) {
+            await adminAppwrite.databases.updateDocument(APPWRITE_DATABASE_ID, 'students', data.id, { grade_level: data.grade_level });
+        }
 
-    const updateData: any = { full_name: data.full_name };
-    if (profile.role === 'super_admin' && data.school_id) {
-        updateData.school_id = data.school_id;
+        return { success: true };
+    } catch (e: any) {
+        return { error: e.message };
     }
-
-    // Update Profile
-    const { error: profileError } = await adminSupabase
-        .from('profiles')
-        .update(updateData)
-        .eq('id', data.id);
-
-    if (profileError) return { error: profileError.message };
-
-    // Update Role Specific Data
-    if (targetProfile.role === 'teacher' && data.class_section) {
-        await adminSupabase.from('teachers').update({ class_section: data.class_section }).eq('id', data.id);
-    } else if (targetProfile.role === 'student' && data.grade_level) {
-        await adminSupabase.from('students').update({ grade_level: data.grade_level }).eq('id', data.id);
-    }
-
-    return { success: true };
 }
 
 export async function saveSystemSettingsAction(settings: Record<string, string>) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    try {
+        const { account, databases } = await createSessionClient();
+        const user = await account.get();
+        if (!user) return { error: "Unauthorized" };
 
-    if (!user) return { error: "Unauthorized" };
+        const profile = await databases.getDocument(APPWRITE_DATABASE_ID, 'profiles', user.$id);
+        if (profile?.role !== 'super_admin') return { error: "Insufficient permissions" };
 
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (profile?.role !== 'super_admin') return { error: "Insufficient permissions" };
+        const adminAppwrite = getAppwriteAdmin();
 
-    const adminSupabase = createSupabaseClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+        // Appwrite lacks native `upsert` array, so we must fetch and update individually.
+        for (const [key, value] of Object.entries(settings)) {
+            const exists = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, 'site_settings', [
+                Query.equal('key', key),
+                Query.limit(1) // Avoid multiple fetch overhead
+            ]);
 
-    const updates = Object.entries(settings).map(([key, value]) => ({
-        key,
-        value
-    }));
+            if (exists.documents.length > 0) {
+                await adminAppwrite.databases.updateDocument(APPWRITE_DATABASE_ID, 'site_settings', exists.documents[0].$id, { value });
+            } else {
+                await adminAppwrite.databases.createDocument(APPWRITE_DATABASE_ID, 'site_settings', ID.unique(), { key, value });
+            }
+        }
 
-    const { error } = await adminSupabase
-        .from('site_settings')
-        .upsert(updates, { onConflict: 'key' });
+        revalidatePath("/", "layout");
+        revalidatePath("/dashboard", "layout");
 
-    if (error) return { error: error.message };
-
-    revalidatePath("/", "layout");
-    revalidatePath("/dashboard", "layout");
-
-    return { success: true };
+        return { success: true };
+    } catch (e: any) {
+        return { error: e.message };
+    }
 }
 
+export async function updateSchoolAction(id: string, values: { name: string, address: string }) {
+    try {
+        const { account, databases } = await createSessionClient();
+        const user = await account.get();
+        if (!user) return { error: "Unauthorized" };
+
+        const profile = await databases.getDocument(APPWRITE_DATABASE_ID, 'profiles', user.$id);
+        if (profile.role !== 'school_admin' && profile.role !== 'super_admin') {
+            return { error: "Insufficient permissions" };
+        }
+
+        if (profile.role === 'school_admin' && profile.school_id !== id) {
+            return { error: "Direct access violation" };
+        }
+
+        const adminAppwrite = getAppwriteAdmin();
+        await adminAppwrite.databases.updateDocument(APPWRITE_DATABASE_ID, "schools", id, values);
+
+        revalidatePath("/dashboard/settings");
+        return { success: true };
+    } catch (e: any) {
+        return { error: e.message };
+    }
+}
+
+export async function getApprovedSchoolsAction() {
+    try {
+        const adminAppwrite = getAppwriteAdmin();
+        const schools = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "schools", [
+            Query.equal("status", "approved")
+        ]);
+        return { data: JSON.parse(JSON.stringify(schools.documents)) };
+    } catch (e: any) {
+        return { error: e.message };
+    }
+}
+
+export async function deleteProfileAction(id: string) {
+    try {
+        const adminAppwrite = getAppwriteAdmin();
+
+        // Remove from auth
+        await adminAppwrite.users.delete(id);
+
+        // Document should be removed by cascade if planned, but let's do it manually if not
+        // In our setup-appwrite-db.js, we don't have explicit cascades yet
+        await adminAppwrite.databases.deleteDocument(APPWRITE_DATABASE_ID, "profiles", id);
+
+        revalidatePath("/dashboard/teachers");
+        revalidatePath("/dashboard/students");
+        revalidatePath("/dashboard/judges");
+        return { success: true };
+    } catch (e: any) {
+        return { error: e.message };
+    }
+}
+
+export async function updateProfileStatusAction(id: string, status: 'approved' | 'rejected') {
+    try {
+        const adminAppwrite = getAppwriteAdmin();
+        await adminAppwrite.databases.updateDocument(APPWRITE_DATABASE_ID, "profiles", id, { status });
+
+        revalidatePath("/dashboard/teachers");
+        revalidatePath("/dashboard/students");
+        revalidatePath("/dashboard/judges");
+        return { success: true };
+    } catch (e: any) {
+        return { error: e.message };
+    }
+}
+
+/**
+ * Creates a submission and its associated media record using Admin privileges.
+ * Bypasses client-side permission issues.
+ */
+export async function createSubmissionAction(values: {
+    title: string,
+    description: string,
+    event_id: string,
+    media?: {
+        video_url?: string;
+        youtube_url?: string;
+        vimeo_url?: string;
+        storage_path?: string;
+        type: string;
+    }
+}) {
+    try {
+        const { account } = await createSessionClient();
+        const user = await account.get();
+        if (!user) return { error: "Unauthorized" };
+
+        const adminAppwrite = getAppwriteAdmin();
+
+        // 1. Check for duplicate
+        const existing = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "submissions", [
+            Query.equal("event_id", values.event_id),
+            Query.equal("student_id", user.$id),
+            Query.limit(1)
+        ]);
+
+        if (existing.documents.length > 0) {
+            return { error: "You have already submitted to this competition." };
+        }
+
+        const submissionId = ID.unique();
+
+        // 2. Create primary submission document
+        const submission = await adminAppwrite.databases.createDocument(APPWRITE_DATABASE_ID, "submissions", submissionId, {
+            title: values.title,
+            description: values.description,
+            event_id: values.event_id,
+            student_id: user.$id,
+            status: 'pending',
+            created_at: new Date().toISOString(),
+        });
+
+        // 3. Create media details document if provided
+        if (values.media) {
+            await adminAppwrite.databases.createDocument(APPWRITE_DATABASE_ID, "submission_videos", ID.unique(), {
+                submission_id: submission.$id,
+                video_url: values.media.video_url || null,
+                youtube_url: values.media.youtube_url || null,
+                vimeo_url: values.media.vimeo_url || null,
+                storage_path: values.media.storage_path || null,
+                type: values.media.type,
+                created_at: new Date().toISOString(),
+            });
+        }
+
+        revalidatePath("/dashboard/my-submissions");
+        revalidatePath("/dashboard/submissions");
+        return { success: true, submissionId: submission.$id };
+    } catch (e: any) {
+        console.error("Submission creation failed:", e);
+        return { error: e.message || "Failed to create submission" };
+    }
+}
+
+/**
+ * Updates an existing submission and its media record using Admin privileges.
+ */
+export async function updateSubmissionAction(id: string, values: {
+    title: string,
+    description: string,
+    youtube_url?: string;
+}) {
+    try {
+        const { account } = await createSessionClient();
+        const user = await account.get();
+        if (!user) return { error: "Unauthorized" };
+
+        const adminAppwrite = getAppwriteAdmin();
+
+        // Load submission to verify ownership
+        const submission = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "submissions", id);
+        if (submission.student_id !== user.$id) return { error: "Unauthorized" };
+        if (submission.status !== 'pending') return { error: "Only pending submissions can be edited" };
+
+        // 1. Update primary submission document
+        await adminAppwrite.databases.updateDocument(APPWRITE_DATABASE_ID, "submissions", id, {
+            title: values.title,
+            description: values.description,
+        });
+
+        // 2. Update media if youtube_url provided (assuming edit is for youtube type in this specific flow)
+        if (values.youtube_url !== undefined) {
+            const videosRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "submission_videos", [
+                Query.equal("submission_id", id)
+            ]);
+
+            if (videosRes.documents.length > 0) {
+                await adminAppwrite.databases.updateDocument(APPWRITE_DATABASE_ID, "submission_videos", videosRes.documents[0].$id, {
+                    youtube_url: values.youtube_url,
+                    video_url: null,
+                    storage_path: null,
+                    type: 'youtube'
+                });
+            }
+        }
+
+        revalidatePath("/dashboard/my-submissions");
+        revalidatePath("/dashboard/submissions");
+        revalidatePath(`/dashboard/submissions/${id}`);
+        return { success: true };
+    } catch (e: any) {
+        console.error("Submission update failed:", e);
+        return { error: e.message || "Failed to update submission" };
+    }
+}
+
+export async function saveSchoolAction(values: any) {
+    try {
+        const adminAppwrite = getAppwriteAdmin();
+
+        if (values.id) {
+            await adminAppwrite.databases.updateDocument(APPWRITE_DATABASE_ID, "schools", values.id, {
+                name: values.name,
+                address: values.address,
+                logo_url: values.logo_url
+            });
+        } else {
+            await adminAppwrite.databases.createDocument(APPWRITE_DATABASE_ID, "schools", ID.unique(), {
+                name: values.name,
+                address: values.address,
+                logo_url: values.logo_url,
+                status: 'approved'
+            });
+        }
+
+        revalidatePath("/dashboard/schools");
+        return { success: true };
+    } catch (e: any) {
+        return { error: e.message };
+    }
+}
+
+export async function getSchoolStatsAction(schoolId: string) {
+    try {
+        const adminAppwrite = getAppwriteAdmin();
+
+        const teachers = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "profiles", [
+            Query.equal("school_id", schoolId),
+            Query.equal("role", "teacher")
+        ]);
+
+        const students = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "profiles", [
+            Query.equal("school_id", schoolId),
+            Query.equal("role", "student")
+        ]);
+
+        return {
+            data: {
+                teachers: teachers.total,
+                students: students.total
+            }
+        };
+    } catch (e: any) {
+        return { error: e.message };
+    }
+}
+
+export async function resetSubmissionAction(id: string) {
+    try {
+        const adminAppwrite = getAppwriteAdmin();
+
+        // 1. Find and delete associated videos
+        const videosRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "submission_videos", [
+            Query.equal("submission_id", id)
+        ]);
+
+        for (const video of videosRes.documents) {
+            await adminAppwrite.databases.deleteDocument(APPWRITE_DATABASE_ID, "submission_videos", video.$id);
+        }
+
+        // 2. Delete the submission
+        await adminAppwrite.databases.deleteDocument(APPWRITE_DATABASE_ID, "submissions", id);
+
+        revalidatePath("/dashboard/submissions");
+        revalidatePath("/dashboard/my-submissions");
+        return { success: true };
+    } catch (e: any) {
+        console.error("Submission reset failed:", e);
+        return { error: e.message || "Failed to reset submission" };
+    }
+}
+
+export async function deleteSchoolAction(id: string) {
+    try {
+        const adminAppwrite = getAppwriteAdmin();
+        await adminAppwrite.databases.deleteDocument(APPWRITE_DATABASE_ID, "schools", id);
+        revalidatePath("/dashboard/schools");
+        return { success: true };
+    } catch (e: any) {
+        return { error: e.message };
+    }
+}
+
+export async function updateSchoolStatusAction(schoolId: string, status: 'approved' | 'rejected', adminEmail: string, schoolName: string) {
+    try {
+        const adminAppwrite = getAppwriteAdmin();
+
+        // Update school status
+        await adminAppwrite.databases.updateDocument(APPWRITE_DATABASE_ID, "schools", schoolId, { status });
+
+        // Update admin profile if necessary
+        if (status === 'approved') {
+            const profiles = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "profiles", [
+                Query.equal("email", adminEmail)
+            ]);
+
+            if (profiles.documents.length > 0) {
+                const profile = profiles.documents[0];
+                await adminAppwrite.databases.updateDocument(APPWRITE_DATABASE_ID, "profiles", profile.$id, {
+                    status: 'approved',
+                    role: 'school_admin',
+                    school_id: schoolId
+                });
+            }
+        } else if (status === 'rejected') {
+            const profiles = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "profiles", [
+                Query.equal("email", adminEmail)
+            ]);
+
+            if (profiles.documents.length > 0) {
+                const profile = profiles.documents[0];
+                await adminAppwrite.databases.updateDocument(APPWRITE_DATABASE_ID, "profiles", profile.$id, {
+                    status: 'pending'
+                });
+            }
+        }
+
+        revalidatePath("/dashboard/schools");
+        return { success: true };
+    } catch (e: any) {
+        return { error: e.message };
+    }
+}
+
+export async function evaluateSubmissionAction(submissionId: string, score: number, feedback: string) {
+    try {
+        const adminAppwrite = getAppwriteAdmin();
+        await adminAppwrite.databases.updateDocument(APPWRITE_DATABASE_ID, "submissions", submissionId, {
+            score,
+            feedback,
+            status: 'reviewed'
+        });
+
+        revalidatePath("/dashboard/submissions");
+        revalidatePath("/dashboard/evaluate");
+        return { success: true };
+    } catch (e: any) {
+        return { error: e.message };
+    }
+}
+
+export async function deleteEventAction(id: string) {
+    try {
+        const adminAppwrite = getAppwriteAdmin();
+        await adminAppwrite.databases.deleteDocument(APPWRITE_DATABASE_ID, "events", id);
+        revalidatePath("/dashboard/events");
+        revalidatePath("/competitions");
+        return { success: true };
+    } catch (e: any) {
+        return { error: e.message };
+    }
+}

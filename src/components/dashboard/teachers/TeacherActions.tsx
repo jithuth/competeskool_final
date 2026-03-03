@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
+import { updateProfileStatusAction, deleteProfileAction } from "@/app/actions/admin";
 import { useRouter } from "next/navigation";
 import { TeacherColumn } from "./columns";
 
@@ -42,18 +42,14 @@ interface TeacherActionsProps {
 export function TeacherActions({ teacher, isSuperAdmin, schools }: TeacherActionsProps) {
     const [loading, setLoading] = useState(false);
     const [showEditDialog, setShowEditDialog] = useState(false);
-    const supabase = createClient();
     const router = useRouter();
 
     const updateStatus = async (status: 'approved' | 'rejected') => {
         setLoading(true);
-        const { error } = await supabase
-            .from("profiles")
-            .update({ status })
-            .eq("id", teacher.id);
+        const res = await updateProfileStatusAction(teacher.id, status);
 
-        if (error) {
-            toast.error(error.message);
+        if (res.error) {
+            toast.error(res.error);
             setLoading(false);
             return;
         }
@@ -67,14 +63,10 @@ export function TeacherActions({ teacher, isSuperAdmin, schools }: TeacherAction
         if (!confirm("Are you sure you want to delete this teacher?")) return;
 
         setLoading(true);
+        const res = await deleteProfileAction(teacher.id);
 
-        const { error } = await supabase
-            .from("profiles")
-            .delete()
-            .eq("id", teacher.id);
-
-        if (error) {
-            toast.error("Failed to delete the teacher. Please refer to support if issue persists.");
+        if (res.error) {
+            toast.error(res.error);
             setLoading(false);
             return;
         }

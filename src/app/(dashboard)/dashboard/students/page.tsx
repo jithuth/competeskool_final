@@ -1,77 +1,97 @@
-import { createClient } from "@/lib/supabase/server";
+import { createSessionClient, APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
 import { Users, GraduationCap, CheckCircle, Clock } from "lucide-react";
 import { DataTable } from "@/components/ui/data-table";
 import { columns } from "@/components/dashboard/students/columns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { redirect } from "next/navigation";
+import { Query } from "node-appwrite";
 
 export default async function StudentsPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    let user;
+    try {
+        const { account } = await createSessionClient();
+        user = await account.get();
+    } catch (e) {
+        redirect("/login");
+    }
 
     if (!user) redirect("/login");
 
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("school_id, role")
-        .eq("id", user.id)
-        .single();
+    const adminAppwrite = getAppwriteAdmin();
+
+    let profile: any = null;
+    try {
+        profile = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", user.$id);
+    } catch (e) { }
 
     if (!profile) redirect("/dashboard");
 
     const schoolId = profile?.school_id;
 
     // Fetch students based on role
-    let query = supabase
-        .from("profiles")
-        .select(`
-            id,
-            full_name,
-            email,
-            status,
-            created_at,
-            school_id,
-            schools (name),
-            students (
-                grade_level,
-                teacher_id,
-                teachers (
-                    profiles (full_name)
-                )
-            )
-        `)
-        .eq("role", "student");
+    let queries = [
+        Query.equal("role", "student"),
+        Query.orderDesc("$createdAt")
+    ];
 
-    // Role-based filtering logic
-    if (profile.role === 'teacher') {
-        // Teachers only see their assigned students
-        query = query.eq("students.teacher_id", user.id);
-    } else if (profile.role === 'school_admin') {
+    if (profile.role === 'school_admin') {
         if (!schoolId) {
             console.error("School Admin has no school_id!");
         } else {
-            query = query.eq("school_id", schoolId);
+            queries.push(Query.equal("school_id", schoolId));
         }
     }
 
-    const { data: students, error: queryError } = await query;
-    if (queryError) console.error("Query Error:", queryError);
+    let studentsRaw: any[] = [];
+    try {
+        const studRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "profiles", queries);
+        studentsRaw = studRes.documents;
+    } catch (e) { }
 
-    const formattedStudents = students?.map((s: any) => {
-        const studentInfo = Array.isArray(s.students) ? s.students[0] : s.students;
-        const teacherProfile = studentInfo?.teachers?.profiles;
+    let formattedStudents = await Promise.all(
+        studentsRaw.map(async (s: any) => {
+            let schoolName = "N/A";
+            if (s.school_id) {
+                try {
+                    const sc = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "schools", s.school_id);
+                    schoolName = sc.name;
+                } catch (e) { }
+            }
 
-        return {
-            id: s.id,
-            full_name: s.full_name,
-            email: s.email,
-            status: s.status,
-            created_at: s.created_at,
-            school_name: s.schools?.name || "N/A",
-            teacher_name: teacherProfile?.full_name || "N/A",
-            grade_level: studentInfo?.grade_level || "N/A",
-        };
-    }) || [];
+            let studentInfo: any = null;
+            let teacherProfile: any = null;
+
+            try {
+                // Should use `Query.equal("profile_id", s.$id)` depending on how students collection maps to profiles
+                // We'll assume the student document ID is the profile ID as per convention
+                studentInfo = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "students", s.$id);
+
+                if (studentInfo && studentInfo.teacher_id) {
+                    try {
+                        teacherProfile = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", studentInfo.teacher_id);
+                    } catch (e) { }
+                }
+            } catch (e) { }
+
+            return {
+                id: s.$id,
+                full_name: s.full_name,
+                email: s.email,
+                status: s.status,
+                created_at: s.$createdAt,
+                school_name: schoolName,
+                teacher_name: teacherProfile?.full_name || "N/A",
+                grade_level: studentInfo?.grade_level || "N/A",
+                teacher_id: studentInfo?.teacher_id
+            };
+        })
+    );
+
+    // Filter for teachers
+    if (profile.role === 'teacher') {
+        formattedStudents = formattedStudents.filter(s => s.teacher_id === user.$id);
+    }
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">

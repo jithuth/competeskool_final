@@ -133,7 +133,6 @@ const navItems: NavItem[] = [
     },
 ];
 
-import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -141,7 +140,6 @@ import { toast } from "sonner";
 export function Sidebar({ role, siteSettings }: { role: UserRole, siteSettings?: Record<string, string> }) {
     const pathname = usePathname();
     const router = useRouter();
-    const supabase = createClient();
     const [isLoggingOut, setIsLoggingOut] = useState(false);
 
     const siteTitle = siteSettings?.site_title || "CompeteEdu";

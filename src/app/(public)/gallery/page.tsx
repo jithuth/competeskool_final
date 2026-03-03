@@ -1,13 +1,19 @@
-import { createClient } from "@/lib/supabase/server";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
+import { APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
+import { Query } from "node-appwrite";
 import { Badge } from "@/components/ui/badge";
 import { ImageIcon, Maximize2 } from "lucide-react";
 
 export default async function GalleryPage() {
-    const supabase = await createClient();
-    const { data: galleryItems } = await supabase
-        .from("gallery")
-        .select("*")
-        .order("created_at", { ascending: false });
+    const adminAppwrite = getAppwriteAdmin();
+
+    let galleryItems: any[] = [];
+    try {
+        const res = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "gallery", [
+            Query.orderDesc("$createdAt")
+        ]);
+        galleryItems = JSON.parse(JSON.stringify(res.documents));
+    } catch (e) { }
 
     return (
         <div className="bg-[#080B1A] min-h-screen pb-32">
@@ -40,7 +46,7 @@ export default async function GalleryPage() {
                 <div className="columns-1 md:columns-2 lg:columns-3 gap-8 space-y-8">
                     {galleryItems && galleryItems.length > 0 ? (
                         galleryItems.map((item) => (
-                            <div key={item.id} className="break-inside-avoid relative group rounded-[2.5rem] overflow-hidden bg-slate-900/40 backdrop-blur-md border border-slate-800 hover:border-slate-600 hover:shadow-2xl hover:shadow-primary/10 transition-all duration-700 cursor-zoom-in">
+                            <div key={item.$id} className="break-inside-avoid relative group rounded-[2.5rem] overflow-hidden bg-slate-900/40 backdrop-blur-md border border-slate-800 hover:border-slate-600 hover:shadow-2xl hover:shadow-primary/10 transition-all duration-700 cursor-zoom-in">
                                 <img
                                     src={item.image_url}
                                     alt={item.title || "Gallery Item"}

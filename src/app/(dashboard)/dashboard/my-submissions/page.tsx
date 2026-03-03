@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
+import { createSessionClient, APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
 import { Plus, Video, Rocket, CheckCircle2, Sparkles, Target } from "lucide-react";
 import { SubmissionsTable } from "@/components/dashboard/submissions/SubmissionsTable";
 import { Button } from "@/components/ui/button";
@@ -7,44 +8,82 @@ import { SubmissionWizard } from "@/components/dashboard/submissions/SubmissionW
 import { redirect } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Query } from "node-appwrite";
 
 export default async function MySubmissionsPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    let user;
+    try {
+        const { account } = await createSessionClient();
+        user = await account.get();
+    } catch (e) {
+        redirect("/login");
+    }
 
     if (!user) {
         redirect("/login");
     }
 
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("school_id")
-        .eq("id", user.id)
-        .single();
+    const adminAppwrite = getAppwriteAdmin();
 
-    const { data: submissions } = await supabase
-        .from("submissions")
-        .select(`
-      *,
-      events (title),
-      submission_videos (*)
-    `)
-        .eq("student_id", user.id)
-        .order("created_at", { ascending: false });
+    let profile: any = null;
+    try {
+        profile = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", user.$id);
+    } catch (e) { }
 
-    // Fetch events accessible to the student
-    const eventsQuery = supabase
-        .from("events")
-        .select("*, schools(name)")
-        .eq("status", "active");
+    let submissions: any[] = [];
+    try {
+        const subRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "submissions", [
+            Query.equal("student_id", user.$id),
+            Query.orderDesc("$createdAt")
+        ]);
 
-    if (profile?.school_id) {
-        eventsQuery.or(`is_private.eq.false,school_id.eq.${profile.school_id}`);
-    } else {
-        eventsQuery.eq("is_private", false);
-    }
+        submissions = await Promise.all(
+            subRes.documents.map(async (doc: any) => {
+                let ev = null;
+                try {
+                    ev = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "events", doc.event_id);
+                } catch (e) { }
 
-    const { data: activeEvents } = await eventsQuery;
+                let vids: any[] = [];
+                try {
+                    const vidRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "submission_videos", [
+                        Query.equal("submission_id", doc.$id)
+                    ]);
+                    vids = vidRes.documents;
+                } catch (e) { }
+
+                return {
+                    ...doc,
+                    events: ev,
+                    submission_videos: vids
+                }
+            })
+        );
+    } catch (e) { }
+
+    // Fetch active events
+    let activeEvents: any[] = [];
+    try {
+
+        // Appwrite Doesn't easily allow to query `Or` across `is_private` and `school_id`, 
+        // We fetch all active generally, and then filter them out in memory mapped
+        const evRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "events", [
+            Query.equal("status", "active")
+        ]);
+
+        let fetchedEvents = JSON.parse(JSON.stringify(evRes.documents));
+
+        for (const ev of fetchedEvents) {
+            ev.id = ev.$id;
+        }
+
+        if (profile?.school_id) {
+            activeEvents = fetchedEvents.filter((e: any) => !e.is_private || e.school_id === profile.school_id);
+        } else {
+            activeEvents = fetchedEvents.filter((e: any) => !e.is_private);
+        }
+
+    } catch (e) { }
 
     const availableEvents = activeEvents?.filter(e => !submissions?.some(s => s.event_id === e.id)) || [];
 

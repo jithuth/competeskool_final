@@ -1,9 +1,11 @@
-import { createClient } from "@/lib/supabase/server";
+import { createSessionClient, APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { Trophy, BarChart3, Medal, Settings2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Query } from "node-appwrite";
 
 const TIER_CONFIG = {
     gold: { label: "Gold", emoji: "🥇", pill: "bg-amber-100 text-amber-700 border-amber-200" },
@@ -21,36 +23,102 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 };
 
 export default async function ResultsPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    let user;
+    try {
+        const { account } = await createSessionClient();
+        user = await account.get();
+    } catch (e) {
+        redirect("/login");
+    }
+
     if (!user) redirect("/login");
 
-    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    const adminAppwrite = getAppwriteAdmin();
+
+    let profile: any = null;
+    try {
+        profile = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", user.$id);
+    } catch (e) { }
+
     if (profile?.role !== "super_admin") redirect("/dashboard");
 
     // All events with results status
-    const { data: events } = await supabase
-        .from("events")
-        .select("id, title, results_status, results_published_at, start_date")
-        .order("created_at", { ascending: false });
+    let events: any[] = [];
+    try {
+        const evsRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "events", [
+            Query.orderDesc("$createdAt")
+        ]);
+        events = evsRes.documents;
+    } catch (e) { }
 
     // Published results leaderboard
-    const { data: topResults } = await supabase
-        .from("submission_results")
-        .select(`
-            id, weighted_score, rank, tier,
-            student_id,
-            profiles!inner(full_name, schools(name)),
-            events!inner(id, title)
-        `)
-        .order("weighted_score", { ascending: false })
-        .limit(50);
+    let topResults: any[] = [];
+    try {
+        // We order by weighted score descending, limit 50
+        const topRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "submission_results", [
+            Query.orderDesc("weighted_score"),
+            Query.limit(50)
+        ]);
+
+        topResults = await Promise.all(
+            topRes.documents.map(async (res: any) => {
+                let p = null;
+                let ev = null;
+
+                try {
+                    p = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", res.student_id);
+                    if (p && p.school_id) {
+                        try {
+                            const s = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "schools", p.school_id);
+                            p.schools = s;
+                        } catch (e) { }
+                    }
+                } catch (e) { }
+
+                // To get the event, we need the submission
+                try {
+                    const sub = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "submissions", res.submission_id);
+                    if (sub) {
+                        ev = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "events", sub.event_id);
+                    }
+                } catch (e) { }
+
+                return {
+                    ...res,
+                    id: res.$id,
+                    profiles: p,
+                    events: ev,
+                };
+            })
+        );
+    } catch (e) { }
 
     // Badge stats
-    const { count: totalBadges } = await supabase.from("badges").select("id", { count: "exact", head: true });
-    const { count: goldBadges } = await supabase.from("badges").select("id", { count: "exact", head: true }).eq("tier", "gold");
-    const { count: publishedEvents } = await supabase.from("events").select("id", { count: "exact", head: true }).eq("results_status", "published");
-    const { count: pendingEvents } = await supabase.from("events").select("id", { count: "exact", head: true }).in("results_status", ["scoring_open", "review", "scoring_locked"]);
+    let totalBadges = 0;
+    let goldBadges = 0;
+    try {
+        const bAll = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "badges");
+        totalBadges = bAll.total;
+
+        const bGold = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "badges", [
+            Query.equal("tier", "gold")
+        ]);
+        goldBadges = bGold.total;
+    } catch (e) { }
+
+    let publishedEvents = 0;
+    let pendingEvents = 0;
+    try {
+        const pEvs = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "events", [
+            Query.equal("results_status", "published")
+        ]);
+        publishedEvents = pEvs.total;
+
+        const penEvs = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "events", [
+            Query.equal("results_status", ["scoring_open", "review", "scoring_locked"])
+        ]);
+        pendingEvents = penEvs.total;
+    } catch (e) { }
 
     return (
         <div className="max-w-6xl mx-auto space-y-10 animate-in fade-in duration-500 pb-16">
@@ -71,7 +139,7 @@ export default async function ResultsPage() {
                     { label: "Gold Badges", value: goldBadges || 0, icon: Trophy, color: "amber" },
                     { label: "Published Events", value: publishedEvents || 0, icon: BarChart3, color: "emerald" },
                     { label: "Events in Progress", value: pendingEvents || 0, icon: Settings2, color: "blue" },
-                ].map(stat => (
+                ].map((stat: any) => (
                     <div key={stat.label} className="bg-white border-2 rounded-3xl p-6 space-y-3">
                         <stat.icon className={`w-5 h-5 text-${stat.color}-600`} />
                         <div className="text-3xl font-black font-outfit">{stat.value}</div>
@@ -88,7 +156,7 @@ export default async function ResultsPage() {
                         {events?.map((event: any) => {
                             const statusCfg = STATUS_CONFIG[event.results_status] || STATUS_CONFIG.not_started;
                             return (
-                                <div key={event.id} className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50 transition-colors">
+                                <div key={event.$id} className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50 transition-colors">
                                     <div className="flex-1 min-w-0">
                                         <p className="font-black text-slate-900 text-sm truncate">{event.title}</p>
                                         {event.results_published_at && (
@@ -100,13 +168,13 @@ export default async function ResultsPage() {
                                     <Badge className={`${statusCfg.color} font-black text-[9px] uppercase tracking-widest rounded-full shrink-0`}>
                                         {statusCfg.label}
                                     </Badge>
-                                    <Link href={`/dashboard/events/${event.id}/scoring`}>
+                                    <Link href={`/dashboard/events/${event.$id}/scoring`}>
                                         <Button variant="outline" size="sm" className="h-8 rounded-xl font-bold text-[9px] uppercase tracking-widest gap-1.5 shrink-0">
                                             <Settings2 className="w-3 h-3" /> Manage
                                         </Button>
                                     </Link>
                                     {event.results_status === "published" && (
-                                        <Link href={`/events/${event.id}/results`} target="_blank">
+                                        <Link href={`/events/${event.$id}/results`} target="_blank">
                                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-xl text-slate-400 hover:text-indigo-600">
                                                 <Eye className="w-3.5 h-3.5" />
                                             </Button>
@@ -130,7 +198,7 @@ export default async function ResultsPage() {
                     </h2>
                     <div className="bg-white rounded-3xl border-2 overflow-hidden">
                         <div className="divide-y divide-slate-100">
-                            {topResults.map((result: any, index) => {
+                            {topResults.map((result: any, index: number) => {
                                 const tier = result.tier as keyof typeof TIER_CONFIG;
                                 const cfg = TIER_CONFIG[tier] || TIER_CONFIG.participant;
                                 return (

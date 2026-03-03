@@ -8,7 +8,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { loginAction, registerAction } from "@/app/actions/auth";
-import { createClient } from "@/lib/supabase/client";
+import { appwriteDatabases, APPWRITE_DATABASE_ID } from "@/lib/appwrite/client";
+import { Query } from "appwrite";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -57,7 +58,6 @@ export function AuthContent({ siteSettings }: { siteSettings?: Record<string, st
 
     const router = useRouter();
     const searchParams = useSearchParams();
-    const supabase = createClient();
 
     // Switch tabs based on URL
     useEffect(() => {
@@ -102,11 +102,18 @@ export function AuthContent({ siteSettings }: { siteSettings?: Record<string, st
 
     useEffect(() => {
         async function fetchSchools() {
-            const { data } = await supabase.from("schools").select("id, name").eq("status", "approved");
-            if (data) setSchools(data);
+            try {
+                const response = await appwriteDatabases.listDocuments(APPWRITE_DATABASE_ID, "schools", [
+                    Query.equal("status", "approved")
+                ]);
+                setSchools(response.documents.map(s => ({
+                    id: s.$id,
+                    name: s.name
+                })));
+            } catch (e) { console.error(e); }
         }
         fetchSchools();
-    }, [supabase]);
+    }, []);
 
     useEffect(() => {
         if (!selectedSchool) {
@@ -117,46 +124,47 @@ export function AuthContent({ siteSettings }: { siteSettings?: Record<string, st
         }
 
         async function fetchTeachers() {
-            const { data, error } = await supabase
-                .from("profiles")
-                .select(`
-                    id, 
-                    full_name, 
-                    teachers!teachers_id_fkey (class_section)
-                `)
-                .eq("school_id", selectedSchool)
-                .eq("role", "teacher")
-                .eq("status", "approved");
+            try {
+                // 1. Fetch Teachers for this school
+                const teacherProfiles = await appwriteDatabases.listDocuments(APPWRITE_DATABASE_ID, "profiles", [
+                    Query.equal("school_id", selectedSchool),
+                    Query.equal("role", "teacher"),
+                    Query.equal("status", "approved")
+                ]);
 
-            if (error) {
-                console.error("Error fetching teachers:", error);
-                return;
-            }
+                // 2. We have their names, but we need their class_section from the 'teachers' collection
+                const resolvedTeachers: any[] = [];
+                for (let t of teacherProfiles.documents) {
+                    try {
+                        const tDetails = await appwriteDatabases.getDocument(APPWRITE_DATABASE_ID, "teachers", t.$id);
+                        resolvedTeachers.push({
+                            id: t.$id,
+                            full_name: t.full_name,
+                            grade: tDetails.class_section || "Unassigned"
+                        });
+                    } catch (e) {
+                        // Teacher profile details missing
+                    }
+                }
 
-            if (data) {
-                const teachersWithDetails = data.map((p: any) => {
-                    const teacherData = Array.isArray(p.teachers) ? p.teachers[0] : p.teachers;
-                    return {
-                        id: p.id,
-                        full_name: p.full_name,
-                        grade: teacherData?.class_section || "Unassigned"
-                    };
-                });
-
-                setAllTeachers(teachersWithDetails);
+                setAllTeachers(resolvedTeachers);
                 const classes = Array.from(new Set(
-                    teachersWithDetails
+                    resolvedTeachers
                         .map((t: any) => t.grade)
                         .filter(c => c !== "Unassigned")
                 )) as string[];
                 setAvailableClasses(classes);
+
+            } catch (error) {
+                console.error("Error fetching teachers:", error);
+                return;
             }
         }
 
         setValue("grade_level", "");
         setValue("teacher_id", "");
         fetchTeachers();
-    }, [selectedSchool, supabase, setValue]);
+    }, [selectedSchool, setValue]);
 
     const selectedGrade = signupForm.watch("grade_level");
     useEffect(() => {

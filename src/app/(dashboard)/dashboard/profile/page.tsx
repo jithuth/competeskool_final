@@ -1,20 +1,27 @@
-import { createClient } from "@/lib/supabase/server";
+import { createSessionClient, APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
 import { redirect } from "next/navigation";
 import { SecuritySettings } from "@/components/dashboard/settings/SecuritySettings";
 import { GeneralProfileSettings } from "@/components/dashboard/settings/GeneralProfileSettings";
 import { User, ShieldIcon } from "lucide-react";
 
 export default async function ProfilePage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    let user;
+    try {
+        const { account } = await createSessionClient();
+        user = await account.get();
+    } catch (e) {
+        redirect("/login");
+    }
 
     if (!user) redirect("/login");
 
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
+    const adminAppwrite = getAppwriteAdmin();
+
+    let profile: any = null;
+    try {
+        profile = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", user.$id);
+    } catch (e) { }
 
     if (!profile) redirect("/dashboard");
 

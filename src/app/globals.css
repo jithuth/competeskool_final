@@ -169,6 +169,30 @@
   }
 }
 
+/* ── Typography / Prose ────────────────────────────────────────── */
+.prose {
+  color: var(--foreground);
+  line-height: 1.75;
+}
+.prose h1 { @apply text-4xl font-black mb-6; }
+.prose h2 { @apply text-3xl font-black mb-4; }
+.prose h3 { @apply text-2xl font-black mb-4; }
+.prose p { @apply mb-6; }
+.prose ul { @apply list-disc list-inside mb-6; }
+.prose ol { @apply list-decimal list-inside mb-6; }
+.prose blockquote { @apply border-l-4 border-primary pl-6 py-2 italic bg-slate-50 rounded-r-2xl mb-6; }
+.prose a { @apply text-primary underline font-bold; }
+.prose img { @apply rounded-3xl border-4 border-slate-100 my-8; }
+
+.prose-invert {
+  color: oklch(0.9 0 0);
+}
+.prose-invert h1, .prose-invert h2, .prose-invert h3 { @apply text-white; }
+.prose-invert p { @apply text-slate-300; }
+.prose-invert blockquote { @apply border-primary bg-slate-950/50 text-slate-400; }
+.prose-invert a { @apply text-primary; }
+.prose-invert img { @apply border-slate-800; }
+
 /* ── Event Carousel – rich HTML description styles ─────────────── */
 .prose-carousel {
   color: #374151; /* slate-700 */

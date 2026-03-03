@@ -1,4 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
+import { APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
+import { Query } from "node-appwrite";
 import { Metadata } from "next";
 import { getSiteSettings } from "@/lib/cms";
 import Link from "next/link";
@@ -17,23 +19,39 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function WinnersPage() {
-    const supabase = await createClient();
+    const adminAppwrite = getAppwriteAdmin();
     const settings = await getSiteSettings();
     const siteTitle = settings?.site_title || "CompeteEdu";
 
-    // Fetch all public badges (non-participant tiers from published events)
-    const { data: badges } = await supabase
-        .from("badges")
-        .select("*")
-        .eq("is_public", true)
-        .in("tier", ["gold", "silver", "bronze"])
-        .order("tier", { ascending: true })
-        .order("issued_at", { ascending: false });
+    let badges: any[] = [];
+    let totalParticipants = 0;
+    let totalEvents = 0;
+    let goldCount = 0;
 
-    // Stats
-    const { count: totalParticipants } = await supabase.from("badges").select("id", { count: "exact", head: true });
-    const { count: totalEvents } = await supabase.from("events").select("id", { count: "exact", head: true }).eq("results_status", "published");
-    const { count: goldCount } = await supabase.from("badges").select("id", { count: "exact", head: true }).eq("tier", "gold");
+    try {
+        // Fetch all public badges
+        const bRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "badges", [
+            Query.equal("is_public", true),
+            Query.equal("tier", ["gold", "silver", "bronze"]),
+            Query.orderAsc("tier"),
+            Query.orderDesc("issued_at")
+        ]);
+        badges = JSON.parse(JSON.stringify(bRes.documents));
+        totalParticipants = bRes.total;
+
+        // Stats
+        const eRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "events", [
+            Query.equal("results_status", "published"),
+            Query.limit(1) // we only want the total count.
+        ]);
+        totalEvents = eRes.total;
+
+        const gRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "badges", [
+            Query.equal("tier", "gold"),
+            Query.limit(1)
+        ]);
+        goldCount = gRes.total;
+    } catch (e) { }
 
     // Get unique event names for filter
     const eventNames = [...new Set(badges?.map(b => b.event_name) || [])];

@@ -19,14 +19,13 @@ import {
 import Link from "next/link";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
+import { resetSubmissionAction } from "@/app/actions/admin";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { RotateCcw, Loader2 } from "lucide-react";
 
 export function SubmissionsTable({ submissions, role }: { submissions: any[], role: string }) {
-    const supabase = createClient();
     const router = useRouter();
     const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -34,14 +33,17 @@ export function SubmissionsTable({ submissions, role }: { submissions: any[], ro
         if (!confirm("Are you sure you want to reset this submission? This will delete the current entry and allow the student to submit a fresh one.")) return;
 
         setDeletingId(id);
-        const { error } = await supabase.from("submissions").delete().eq("id", id);
-
-        if (error) {
-            toast.error("Failed to reset submission");
-        } else {
-            toast.success("Submission reset successfully");
-            router.refresh();
+        try {
+            const res = await resetSubmissionAction(id);
+            if (res.error) throw new Error(res.error);
+        } catch (error: any) {
+            toast.error(error.message || "Failed to reset submission");
+            setDeletingId(null);
+            return;
         }
+
+        toast.success("Submission reset successfully");
+        router.refresh();
         setDeletingId(null);
     };
     if (!submissions || submissions.length === 0) {

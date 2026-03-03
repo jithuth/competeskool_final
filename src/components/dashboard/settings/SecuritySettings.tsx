@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
+import { updatePasswordAction } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import {
     Form,
@@ -30,7 +30,6 @@ type PasswordFormValues = z.infer<typeof passwordSchema>;
 
 export function SecuritySettings() {
     const [loading, setLoading] = useState(false);
-    const supabase = createClient();
 
     const form = useForm<PasswordFormValues>({
         resolver: zodResolver(passwordSchema),
@@ -42,12 +41,10 @@ export function SecuritySettings() {
 
     async function onSubmit(values: PasswordFormValues) {
         setLoading(true);
-        const { error } = await supabase.auth.updateUser({
-            password: values.password
-        });
+        const res = await updatePasswordAction(values.password);
 
-        if (error) {
-            toast.error(error.message);
+        if (res.error) {
+            toast.error(res.error);
         } else {
             toast.success("Password updated successfully!");
             form.reset();

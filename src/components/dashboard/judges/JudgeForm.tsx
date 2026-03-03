@@ -6,7 +6,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,7 +26,6 @@ type JudgeFormValues = z.infer<typeof judgeSchema>;
 export function JudgeForm({ onSuccess }: { onSuccess?: () => void }) {
     const [loading, setLoading] = useState(false);
     const router = useRouter();
-    const supabase = createClient();
 
     const form = useForm<JudgeFormValues>({
         resolver: zodResolver(judgeSchema),

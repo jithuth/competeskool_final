@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { GraduationCap, Github, Twitter, Linkedin, Mail } from "lucide-react";
 import { getSiteSettings, getSeoConfig } from "@/lib/cms";
 import { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { createSessionClient, APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
 import { redirect } from "next/navigation";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -29,13 +29,17 @@ export default async function PublicLayout({
     const contactEmail = settings?.contact_email || "contact@competeedu.com";
     const footerCopy = settings?.footer_copy || "© 2026 CompeteEdu India. All Rights Reserved.";
 
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
+    let user = null;
     let role = null;
-    if (user) {
-        const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-        role = profile?.role;
+    try {
+        const { account, databases } = await createSessionClient();
+        user = await account.get();
+        if (user) {
+            const profile = await databases.getDocument(APPWRITE_DATABASE_ID, "profiles", user.$id);
+            role = profile?.role;
+        }
+    } catch (e) {
+        // Not logged in
     }
 
     const siteTitle = settings?.site_title || "CompeteEdu";
@@ -88,9 +92,8 @@ export default async function PublicLayout({
                             <>
                                 <form action={async () => {
                                     'use server';
-                                    const { createClient } = await import('@/lib/supabase/server');
-                                    const supabase = await createClient();
-                                    await supabase.auth.signOut();
+                                    const { logoutAction } = await import('@/app/actions/auth');
+                                    await logoutAction();
                                     redirect("/");
                                 }}>
                                     <Button type="submit" variant="ghost" size="sm" className="font-black uppercase tracking-widest text-[10px] h-10 px-4 text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-xl">

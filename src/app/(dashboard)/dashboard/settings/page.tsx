@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
+import { createSessionClient, APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
 import { redirect } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SecuritySettings } from "@/components/dashboard/settings/SecuritySettings";
@@ -13,16 +14,25 @@ import { User, Settings as SettingsIcon, ShieldIcon } from "lucide-react";
 export default async function SettingsPage(props: { searchParams: Promise<{ tab?: string }> }) {
     const searchParams = await props.searchParams;
     const defaultTab = searchParams.tab || "profile";
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+
+    let user;
+    try {
+        const { account } = await createSessionClient();
+        user = await account.get();
+    } catch (e) {
+        redirect("/login");
+    }
 
     if (!user) redirect("/login");
 
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
+    const adminAppwrite = getAppwriteAdmin();
+
+    let profile: any = null;
+    try {
+        profile = JSON.parse(JSON.stringify(
+            await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", user.$id)
+        ));
+    } catch (e) { }
 
     if (!profile) redirect("/dashboard");
 
@@ -30,16 +40,21 @@ export default async function SettingsPage(props: { searchParams: Promise<{ tab?
 
     // Fetch Role Specific Data
     let roleData = null;
-    if (profile.role === 'school_admin') {
-        const { data } = await supabase.from("schools").select("*").eq("id", profile.school_id).single();
-        roleData = data;
-    } else if (profile.role === 'teacher') {
-        const { data } = await supabase.from("teachers").select("*").eq("id", profile.id).single();
-        roleData = data;
-    } else if (profile.role === 'student') {
-        const { data } = await supabase.from("students").select("*").eq("id", profile.id).single();
-        roleData = data;
-    }
+    try {
+        if (profile.role === 'school_admin' && profile.school_id) {
+            roleData = JSON.parse(JSON.stringify(
+                await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "schools", profile.school_id)
+            ));
+        } else if (profile.role === 'teacher') {
+            roleData = JSON.parse(JSON.stringify(
+                await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "teachers", profile.$id)
+            ));
+        } else if (profile.role === 'student') {
+            roleData = JSON.parse(JSON.stringify(
+                await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "students", profile.$id)
+            ));
+        }
+    } catch (e) { }
 
     return (
         <div className="max-w-6xl mx-auto space-y-10 animate-in fade-in duration-700 pb-10">
@@ -78,8 +93,8 @@ export default async function SettingsPage(props: { searchParams: Promise<{ tab?
                     <TabsContent value="profile" className="mt-0 space-y-2 max-w-4xl">
                         <GeneralProfileSettings profile={profile} />
                         {profile.role === 'school_admin' && <SchoolSettings initialData={roleData} />}
-                        {profile.role === 'teacher' && <TeacherSettings initialData={roleData} profileId={profile.id} />}
-                        {profile.role === 'student' && <StudentSettings initialData={roleData} profileId={profile.id} />}
+                        {profile.role === 'teacher' && <TeacherSettings initialData={roleData} profileId={profile.$id} />}
+                        {profile.role === 'student' && <StudentSettings initialData={roleData} profileId={profile.$id} />}
                     </TabsContent>
 
                     <TabsContent value="security" className="mt-0">

@@ -1,16 +1,19 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createSessionClient, APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
 import { google } from "googleapis";
 
 export const runtime = "nodejs";
 
 export async function GET() {
     // Auth guard — super admin only
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-    if (profile?.role !== "super_admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    try {
+        const { account, databases } = await createSessionClient();
+        const user = await account.get();
+        const profile = await databases.getDocument(APPWRITE_DATABASE_ID, "profiles", user.$id);
+        if (profile.role !== "super_admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    } catch (e) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const clientId = process.env.YOUTUBE_CLIENT_ID;
     const clientSecret = process.env.YOUTUBE_CLIENT_SECRET;

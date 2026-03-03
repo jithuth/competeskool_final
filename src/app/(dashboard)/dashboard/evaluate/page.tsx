@@ -1,32 +1,53 @@
-import { createClient } from "@/lib/supabase/server";
+import { createSessionClient, APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { ClipboardList, Clock, CheckCircle2, Eye, Video, Download, Trophy, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Query } from "node-appwrite";
 
 export default async function EvaluatePage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    let user;
+    try {
+        const { account } = await createSessionClient();
+        user = await account.get();
+    } catch (e) {
+        redirect("/login");
+    }
+
     if (!user) redirect("/login");
 
-    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    const adminAppwrite = getAppwriteAdmin();
+
+    let profile: any = null;
+    try {
+        profile = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", user.$id);
+    } catch (e) { }
+
     const isJudge = profile?.role === "judge";
     const isSuperAdmin = profile?.role === "super_admin";
     if (!isJudge && !isSuperAdmin) redirect("/dashboard");
 
-    // ── Fetch assigned events (with full event details for judges) ──────────────
+    // ── Fetch assigned events ──────────────
     let assignedEventIds: string[] = [];
     let assignedEvents: any[] = [];
 
     if (isJudge) {
-        const { data: assignments } = await supabase
-            .from("event_judges")
-            .select("event_id, events!event_judges_event_id_fkey(id, title, start_date, end_date, status, results_status)")
-            .eq("judge_id", user.id);
-        assignedEventIds = assignments?.map((a: any) => a.event_id) || [];
-        assignedEvents = assignments?.map((a: any) => a.events).filter(Boolean) || [];
+        try {
+            const judgeAssignments = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "event_judges", [
+                Query.equal("judge_id", user.$id)
+            ]);
+            assignedEventIds = judgeAssignments.documents.map((a: any) => a.event_id);
+
+            if (assignedEventIds.length > 0) {
+                const evs = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "events", [
+                    Query.equal("$id", assignedEventIds)
+                ]);
+                assignedEvents = evs.documents;
+            }
+        } catch (e) { }
     }
 
     // No assignments for judge
@@ -47,38 +68,69 @@ export default async function EvaluatePage() {
     }
 
     // ── Submissions ─────────────────────────────────────────────────────────────
-    let submissionsQuery = supabase
-        .from("submissions")
-        .select(`
-            id, title, status, created_at, student_id,
-            events!submissions_event_id_fkey(id, title, results_status),
-            profiles!submissions_student_id_fkey(full_name, schools(name)),
-            submission_videos(type, youtube_url, vimeo_url, video_url)
-        `)
-        .order("created_at", { ascending: false });
+    let submissions: any[] = [];
+    try {
+        let q = [Query.orderDesc("$createdAt")];
+        if (isJudge && assignedEventIds.length > 0) {
+            q.push(Query.equal("event_id", assignedEventIds));
+        }
 
-    if (isJudge && assignedEventIds.length > 0) {
-        submissionsQuery = submissionsQuery.in("event_id", assignedEventIds);
-    }
+        const res = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "submissions", q);
+        submissions = res.documents;
 
-    const { data: submissions } = await submissionsQuery;
+        for (const sub of submissions) {
+            sub.id = sub.$id;
+
+            try {
+                const ev = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "events", sub.event_id);
+                sub.events = ev;
+            } catch (e) { }
+
+            try {
+                const prf = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", sub.student_id);
+                if (prf.school_id) {
+                    try {
+                        const sch = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "schools", prf.school_id);
+                        prf.schools = sch;
+                    } catch (e) { }
+                }
+                sub.profiles = prf;
+            } catch (e) { }
+
+            try {
+                const videosRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "submission_videos", [
+                    Query.equal("submission_id", sub.$id)
+                ]);
+                sub.submission_videos = videosRes.documents;
+            } catch (e) { }
+        }
+    } catch (e) { }
 
     // ── Scoring state ───────────────────────────────────────────────────────────
-    const { data: myScores } = await supabase
-        .from("submission_scores")
-        .select("submission_id, criterion_id")
-        .eq("judge_id", user.id);
+    let myScores: any[] = [];
+    try {
+        const scoresRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "submission_scores", [
+            Query.equal("judge_id", user.$id)
+        ]);
+        myScores = scoresRes.documents;
+    } catch (e) { }
 
     const scoreCountMap = new Map<string, number>();
     for (const s of myScores || []) {
         scoreCountMap.set(s.submission_id, (scoreCountMap.get(s.submission_id) || 0) + 1);
     }
 
-    const eventIds = [...new Set(submissions?.map((s: any) => s.events?.id).filter(Boolean) || [])];
-    const { data: criteriaRows } = await supabase
-        .from("evaluation_criteria")
-        .select("event_id")
-        .in("event_id", eventIds.length ? eventIds : ["00000000-0000-0000-0000-000000000000"]);
+    const eventIds = [...new Set(submissions?.map((s: any) => s.events?.$id).filter(Boolean) || [])];
+
+    let criteriaRows: any[] = [];
+    if (eventIds.length > 0) {
+        try {
+            const criteriaRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "evaluation_criteria", [
+                Query.equal("event_id", eventIds)
+            ]);
+            criteriaRows = criteriaRes.documents;
+        } catch (e) { }
+    }
 
     const criteriaCountMap = new Map<string, number>();
     for (const c of criteriaRows || []) {
@@ -86,21 +138,20 @@ export default async function EvaluatePage() {
     }
 
     const isFullyScored = (sub: any) => {
-        const scored = scoreCountMap.get(sub.id) || 0;
-        const total = criteriaCountMap.get(sub.events?.id) || 1;
+        const scored = scoreCountMap.get(sub.$id) || 0;
+        const total = criteriaCountMap.get(sub.events?.$id) || 1;
         return scored >= total && total > 0;
     };
 
     // ── Group submissions by event ──────────────────────────────────────────────
     const submissionsByEvent = new Map<string, { event: any; submissions: any[] }>();
     for (const sub of submissions || []) {
-        const subAny = sub as any;
-        const eid = subAny.events?.id;
+        const eid = sub.events?.$id;
         if (!eid) continue;
         if (!submissionsByEvent.has(eid)) {
-            submissionsByEvent.set(eid, { event: subAny.events, submissions: [] });
+            submissionsByEvent.set(eid, { event: sub.events, submissions: [] });
         }
-        submissionsByEvent.get(eid)!.submissions.push(subAny);
+        submissionsByEvent.get(eid)!.submissions.push(sub);
     }
 
     // For super admin: build event list from submissions
@@ -129,14 +180,14 @@ export default async function EvaluatePage() {
                     </h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {displayEvents.map((event: any) => {
-                            const group = submissionsByEvent.get(event.id);
+                            const group = submissionsByEvent.get(event.$id);
                             const total = group?.submissions.length || 0;
                             const done = group?.submissions.filter(isFullyScored).length || 0;
                             const pct = total > 0 ? Math.round((done / total) * 100) : 0;
                             const allDone = pct === 100 && total > 0;
                             return (
                                 <div
-                                    key={event.id}
+                                    key={event.$id}
                                     className={`p-5 rounded-2xl border-2 space-y-3 transition-all ${allDone
                                         ? "bg-emerald-50 border-emerald-200"
                                         : "bg-white border-indigo-100 hover:border-indigo-200 hover:shadow-md"}`}
@@ -198,7 +249,7 @@ export default async function EvaluatePage() {
                                     <Clock className="w-3 h-3" /> Awaiting Evaluation ({pending.length})
                                 </p>
                                 {pending.map((sub: any) => (
-                                    <div key={sub.id} className="group flex items-center gap-4 p-5 bg-white rounded-2xl border-2 border-amber-100 hover:border-amber-200 hover:shadow-md transition-all">
+                                    <div key={sub.$id} className="group flex items-center gap-4 p-5 bg-white rounded-2xl border-2 border-amber-100 hover:border-amber-200 hover:shadow-md transition-all">
                                         <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
                                             <Video className="w-5 h-5 text-amber-500" />
                                         </div>
@@ -219,7 +270,7 @@ export default async function EvaluatePage() {
                                                     </a>
                                                 ) : null;
                                             })()}
-                                            <Link href={`/dashboard/evaluate/${sub.id}`}>
+                                            <Link href={`/dashboard/evaluate/${sub.$id}`}>
                                                 <Button size="sm" className="h-9 rounded-xl bg-slate-900 hover:bg-indigo-600 font-black uppercase text-[9px] tracking-widest gap-1.5">
                                                     <ClipboardList className="w-3.5 h-3.5" /> Evaluate
                                                 </Button>
@@ -237,7 +288,7 @@ export default async function EvaluatePage() {
                                     <CheckCircle2 className="w-3 h-3" /> Evaluated ({completed.length})
                                 </p>
                                 {completed.map((sub: any) => (
-                                    <div key={sub.id} className="flex items-center gap-4 p-5 bg-slate-50 rounded-2xl border-2 border-slate-100">
+                                    <div key={sub.$id} className="flex items-center gap-4 p-5 bg-slate-50 rounded-2xl border-2 border-slate-100">
                                         <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
                                             <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                                         </div>
@@ -258,7 +309,7 @@ export default async function EvaluatePage() {
                                                     </a>
                                                 ) : null;
                                             })()}
-                                            <Link href={`/dashboard/evaluate/${sub.id}`}>
+                                            <Link href={`/dashboard/evaluate/${sub.$id}`}>
                                                 <Button variant="outline" size="sm" className="h-9 rounded-xl font-black uppercase text-[9px] tracking-widest gap-1.5">
                                                     <Eye className="w-3.5 h-3.5" /> Review
                                                 </Button>

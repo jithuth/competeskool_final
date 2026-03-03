@@ -1,24 +1,47 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { MoveRight, Calendar, Trophy, ArrowUpRight, ScrollText, XCircle } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
 import { format } from "date-fns";
 import { getCurrentUserAction } from "@/app/actions/session";
 import { getSiteSettings } from "@/lib/cms";
 import EventCarousel from "@/components/public/EventCarousel";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
+import { APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
+import { Query } from "node-appwrite";
+
+export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-    const supabase = await createClient();
-    const settings = await getSiteSettings();
+    const settings = JSON.parse(JSON.stringify(await getSiteSettings()));
 
-    const user = await getCurrentUserAction();
+    const user = JSON.parse(JSON.stringify(await getCurrentUserAction()));
     const userSchoolId = user?.school_id;
 
+    const adminAppwrite = getAppwriteAdmin();
+
     // Fetch events
-    const { data: allUpcoming } = await supabase
-        .from('events')
-        .select('*, schools(name)')
-        .order('end_date', { ascending: true });
+    let allUpcoming: any[] = [];
+    try {
+        const res = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "events", [
+            Query.orderAsc("end_date")
+        ]);
+
+        allUpcoming = JSON.parse(JSON.stringify(await Promise.all(
+            res.documents.map(async (ev) => {
+                let schoolData = null;
+                if (ev.school_id) {
+                    try {
+                        schoolData = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "schools", ev.school_id);
+                    } catch (e) { }
+                }
+                return {
+                    ...ev,
+                    id: ev.$id,
+                    schools: schoolData
+                };
+            })
+        )));
+    } catch (e) { }
 
     const filteredEvents = allUpcoming ?? [];
 

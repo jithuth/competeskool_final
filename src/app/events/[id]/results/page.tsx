@@ -1,4 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
+import { APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
+import { Query } from "node-appwrite";
 import { notFound } from "next/navigation";
 import { Metadata } from "next";
 import Link from "next/link";
@@ -16,8 +18,13 @@ const TIER_CONFIG = {
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
     const { id } = await params;
-    const supabase = await createClient();
-    const { data: event } = await supabase.from("events").select("title").eq("id", id).single();
+    const adminAppwrite = getAppwriteAdmin();
+
+    let event: any = null;
+    try {
+        event = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "events", id);
+    } catch (e) { }
+
     const settings = await getSiteSettings();
     return {
         title: `${event?.title || "Event"} — Results | ${settings?.site_title || "CompeteEdu"}`,
@@ -26,14 +33,13 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 }
 
 export default async function EventResultsPage({ params }: { params: Promise<{ id: string }> }) {
-    const { id: eventId } = await params;
-    const supabase = await createClient();
+    const eventId = (await params).id;
+    const adminAppwrite = getAppwriteAdmin();
 
-    const { data: event } = await supabase
-        .from("events")
-        .select("id, title, description, results_status, results_published_at, banner_url")
-        .eq("id", eventId)
-        .single();
+    let event: any = null;
+    try {
+        event = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "events", eventId);
+    } catch (e) { }
 
     if (!event) notFound();
 
@@ -59,22 +65,50 @@ export default async function EventResultsPage({ params }: { params: Promise<{ i
     }
 
     // Fetch results
-    const { data: results } = await supabase
-        .from("submission_results")
-        .select(`
-            id, weighted_score, rank, tier, judge_count,
-            student_id,
-            profiles!inner(full_name, schools(name)),
-            submissions!inner(title)
-        `)
-        .eq("event_id", eventId)
-        .order("rank", { ascending: true });
+    let resultsRaw: any[] = [];
+    try {
+        const rRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "submission_results", [
+            Query.equal("event_id", eventId),
+            Query.orderAsc("rank")
+        ]);
+        resultsRaw = rRes.documents;
+    } catch (e) { }
+
+    const results = await Promise.all(resultsRaw.map(async r => {
+        let profile = null;
+        if (r.student_id) {
+            try {
+                profile = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", r.student_id);
+                if (profile && profile.school_id) {
+                    try {
+                        const sc = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "schools", profile.school_id);
+                        profile.schools = sc;
+                    } catch (e) { }
+                }
+            } catch (e) { }
+        }
+        let submission = null;
+        if (r.submission_id) {
+            try {
+                submission = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "submissions", r.submission_id);
+            } catch (e) { }
+        }
+        return {
+            ...r,
+            id: r.$id,
+            profiles: profile,
+            submissions: submission
+        }
+    }));
 
     // Fetch badges for verify links
-    const { data: badges } = await supabase
-        .from("badges")
-        .select("student_id, credential_id, tier")
-        .eq("event_id", eventId);
+    let badges: any[] = [];
+    try {
+        const bRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "badges", [
+            Query.equal("event_id", eventId)
+        ]);
+        badges = bRes.documents;
+    } catch (e) { }
 
     const badgeMap = new Map(badges?.map(b => [b.student_id, b]) || []);
 

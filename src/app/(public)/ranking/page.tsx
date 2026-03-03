@@ -1,18 +1,43 @@
-import { createClient } from "@/lib/supabase/server";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
+import { APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
+import { Query } from "node-appwrite";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Trophy, Medal, Star, Award } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export default async function RankingPage() {
-    const supabase = await createClient();
-    const { data: rankings } = await supabase
-        .from("rankings")
-        .select(`
-      *,
-      profiles (full_name, school_id, schools (name))
-    `)
-        .order("rank", { ascending: true })
-        .limit(50);
+    const adminAppwrite = getAppwriteAdmin();
+
+    let rankingsRaw: any[] = [];
+    try {
+        const res = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "rankings", [
+            Query.orderAsc("rank"),
+            Query.limit(50)
+        ]);
+        rankingsRaw = res.documents;
+    } catch (e) { }
+
+    const rankings = JSON.parse(JSON.stringify(await Promise.all(
+        rankingsRaw.map(async (r) => {
+            let p = null;
+            if (r.student_id) {
+                try {
+                    p = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", r.student_id);
+                    if (p && p.school_id) {
+                        try {
+                            const sc = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "schools", p.school_id);
+                            p.schools = sc;
+                        } catch (e) { }
+                    }
+                } catch (e) { }
+            }
+            return {
+                ...r,
+                id: r.$id,
+                profiles: p
+            };
+        })
+    )));
 
     return (
         <div className="bg-[#080B1A] min-h-screen py-32">
@@ -32,7 +57,7 @@ export default async function RankingPage() {
                 </div>
 
                 <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto items-end mt-20 relative z-10">
-                    {rankings && rankings.slice(0, 3).map((rank, i) => (
+                    {rankings && rankings.slice(0, 3).map((rank: any, i: number) => (
                         <div key={rank.id} className={`flex flex-col items-center p-8 rounded-[2.5rem] bg-slate-900/40 backdrop-blur-md border border-slate-800 relative overflow-hidden group hover:border-slate-700 hover:shadow-2xl hover:shadow-primary/10 transition-all duration-500 ${i === 0 ? 'md:order-2 h-[400px] shadow-2xl scale-110 z-10 bg-slate-900/60' :
                             i === 1 ? 'md:order-1 h-[340px]' : 'md:order-3 h-[320px]'
                             }`}>
@@ -69,7 +94,7 @@ export default async function RankingPage() {
                         </TableHeader>
                         <TableBody>
                             {rankings && rankings.length > 0 ? (
-                                rankings.map((rank, index) => (
+                                rankings.map((rank: any, index: number) => (
                                     <TableRow key={rank.id} className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors group">
                                         <TableCell className="font-black text-center">
                                             <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-800/50 text-slate-300 text-xs shadow-inner">#{rank.rank}</span>

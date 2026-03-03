@@ -1,4 +1,5 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { getAppwriteAdmin, APPWRITE_DATABASE_ID } from "@/lib/appwrite/server";
+import { Query, ID } from "node-appwrite";
 import crypto from "crypto";
 
 function hashIp(ip: string) {
@@ -15,46 +16,46 @@ export async function POST(
         || "unknown";
     const voterIp = hashIp(ip);
 
-    const supabase = createSupabaseClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const { databases } = getAppwriteAdmin();
 
-    // Check submission exists and event is still accepting votes (not yet locked)
-    const { data: sub } = await supabase
-        .from("submissions")
-        .select("id, event_id, events!submissions_event_id_fkey(results_status, end_date)")
-        .eq("id", submissionId)
-        .single();
+    try {
+        // 1. Check submission exists
+        const sub = await databases.getDocument(APPWRITE_DATABASE_ID, "submissions", submissionId);
+        if (!sub) return Response.json({ error: "Submission not found" }, { status: 404 });
 
-    if (!sub) return Response.json({ error: "Submission not found" }, { status: 404 });
+        // 2. Check event status
+        const event = await databases.getDocument(APPWRITE_DATABASE_ID, "events", sub.event_id);
+        if (["scoring_locked", "review", "published"].includes(event?.results_status)) {
+            return Response.json({ error: "Voting is closed for this event" }, { status: 403 });
+        }
 
-    const event = (sub as any).events;
-    // Voting allowed only when results are not published yet (up to scoring_open)
-    if (["scoring_locked", "review", "published"].includes(event?.results_status)) {
-        return Response.json({ error: "Voting is closed for this event" }, { status: 403 });
-    }
+        // 3. Check if already voted (duplicate prevention)
+        const existing = await databases.listDocuments(APPWRITE_DATABASE_ID, "submission_votes", [
+            Query.equal("submission_id", submissionId),
+            Query.equal("voter_ip", voterIp),
+            Query.limit(1)
+        ]);
 
-    // Upsert vote — unique(submission_id, voter_ip) handles duplicate prevention
-    const { error } = await supabase
-        .from("submission_votes")
-        .upsert({ submission_id: submissionId, voter_ip: voterIp }, { onConflict: "submission_id,voter_ip" });
-
-    if (error) {
-        // 23505 = unique violation = already voted
-        if (error.code === "23505") {
+        if (existing.total > 0) {
             return Response.json({ error: "Already voted", alreadyVoted: true }, { status: 409 });
         }
-        return Response.json({ error: error.message }, { status: 500 });
+
+        // 4. Create vote
+        await databases.createDocument(APPWRITE_DATABASE_ID, "submission_votes", ID.unique(), {
+            submission_id: submissionId,
+            voter_ip: voterIp
+        });
+
+        // 5. Get updated count
+        const allVotes = await databases.listDocuments(APPWRITE_DATABASE_ID, "submission_votes", [
+            Query.equal("submission_id", submissionId),
+            Query.limit(1)
+        ]);
+
+        return Response.json({ success: true, voteCount: allVotes.total });
+    } catch (err: any) {
+        return Response.json({ error: err.message }, { status: 500 });
     }
-
-    // Return updated vote count
-    const { count } = await supabase
-        .from("submission_votes")
-        .select("*", { count: "exact", head: true })
-        .eq("submission_id", submissionId);
-
-    return Response.json({ success: true, voteCount: count });
 }
 
 export async function GET(
@@ -62,15 +63,16 @@ export async function GET(
     { params }: { params: Promise<{ submissionId: string }> }
 ) {
     const { submissionId } = await params;
-    const supabase = createSupabaseClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const { databases } = getAppwriteAdmin();
 
-    const { count } = await supabase
-        .from("submission_votes")
-        .select("*", { count: "exact", head: true })
-        .eq("submission_id", submissionId);
+    try {
+        const votes = await databases.listDocuments(APPWRITE_DATABASE_ID, "submission_votes", [
+            Query.equal("submission_id", submissionId),
+            Query.limit(1)
+        ]);
 
-    return Response.json({ voteCount: count || 0 });
+        return Response.json({ voteCount: votes.total || 0 });
+    } catch (err: any) {
+        return Response.json({ error: err.message }, { status: 500 });
+    }
 }

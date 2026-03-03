@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
+import { appwriteAccount } from "@/lib/appwrite/client";
 import { Button } from "@/components/ui/button";
 import {
     Form,
@@ -28,7 +28,6 @@ type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
 export default function ForgotPasswordPage() {
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
-    const supabase = createClient();
 
     const form = useForm<ForgotPasswordFormValues>({
         resolver: zodResolver(forgotPasswordSchema),
@@ -39,18 +38,20 @@ export default function ForgotPasswordPage() {
 
     async function onSubmit(values: ForgotPasswordFormValues) {
         setLoading(true);
-        const { error } = await supabase.auth.resetPasswordForEmail(values.email, {
-            redirectTo: `${window.location.origin}/dashboard/settings`,
-        });
+        try {
+            await appwriteAccount.createRecovery(
+                values.email,
+                `${window.location.origin}/dashboard/settings`
+            );
 
-        if (error) {
-            toast.error(error.message);
-        } else {
             toast.success("Password reset link sent!");
             setSuccess(true);
             form.reset();
+        } catch (error: any) {
+            toast.error(error.message);
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     }
 
     return (

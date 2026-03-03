@@ -9,15 +9,15 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createSessionClient } from "@/lib/appwrite/ssr";
 import { google } from "googleapis";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
     // 1. Auth — only logged-in users can initiate uploads
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { account } = await createSessionClient();
+    const user = await account.get().catch(() => null);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     // 2. Check YouTube is configured

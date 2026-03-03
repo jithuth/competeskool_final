@@ -1,4 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
+import { APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
+import { Query } from "node-appwrite";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar, Trophy, ArrowRight, Award, XCircle, Lock } from "lucide-react";
@@ -6,17 +8,35 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { getCurrentUserAction } from "@/app/actions/session";
 
+export const dynamic = "force-dynamic";
+
 export default async function CompetitionsPage() {
-    const supabase = await createClient();
-    const user = await getCurrentUserAction();
+    const user = JSON.parse(JSON.stringify(await getCurrentUserAction()));
     const userSchoolId = user?.school_id;
 
-    let query = supabase
-        .from("events")
-        .select("*, schools(name)")
-        .order("end_date", { ascending: true });
+    const adminAppwrite = getAppwriteAdmin();
 
-    const { data: allEvents } = await query;
+    let allEvents: any[] = [];
+    try {
+        const evsRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "events", [
+            Query.orderAsc("end_date")
+        ]);
+
+        allEvents = JSON.parse(JSON.stringify(await Promise.all(
+            evsRes.documents.map(async (ev: any) => {
+                let currentItem = { ...ev, id: ev.$id };
+
+                if (ev.school_id) {
+                    try {
+                        const sc = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "schools", ev.school_id);
+                        currentItem.schools = sc;
+                    } catch (e) { }
+                }
+
+                return currentItem;
+            })
+        )));
+    } catch (e) { }
 
     // Bypass filtration so all events are visible to everyone
     const events = allEvents;

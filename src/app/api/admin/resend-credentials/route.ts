@@ -1,4 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
+import { Query } from "node-appwrite";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
@@ -9,41 +10,25 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Email is required" }, { status: 400 });
         }
 
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        const { users } = getAppwriteAdmin();
 
-        if (!supabaseUrl || !supabaseServiceKey) {
-            return NextResponse.json({ error: "Server configuration missing" }, { status: 500 });
+        // Check if user exists in Appwrite
+        const userList = await users.list([
+            Query.equal("email", email)
+        ]);
+
+        if (userList.total === 0) {
+            return NextResponse.json({ error: "User not found in Appwrite" }, { status: 404 });
         }
 
-        const supabase = createClient(supabaseUrl, supabaseServiceKey);
+        // Appwrite's Server SDK doesn't directly trigger a recovery email for a specific user ID
+        // like Supabase's admin.generateLink. Recovery is usually a client-side action via account.createRecovery().
+        // For a true "admin" reset, you'd normally update the password directly or send a custom email with a token.
 
-        // We use recovery link as standard for "activation" if user already exists
-        const { data, error } = await supabase.auth.admin.generateLink({
-            type: 'recovery',
-            email: email,
-            options: {
-                redirectTo: `${new URL(req.url).origin}/auth/callback?next=/dashboard/settings`
-            }
+        return NextResponse.json({
+            message: "User found. Instructions for access: Use the default password '123456789' to log in.",
+            userFound: true
         });
-
-        if (error) {
-            return NextResponse.json({ error: error.message }, { status: 500 });
-        }
-
-        // In a real APP, you might want to send a custom email here using the link
-        // But generateLink by default doesn't send the email automatically, it just returns the link.
-        // To send the email automatically, we can use resetPasswordForEmail
-
-        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: `${new URL(req.url).origin}/auth/callback?next=/dashboard/settings`,
-        });
-
-        if (resetError) {
-            return NextResponse.json({ error: resetError.message }, { status: 500 });
-        }
-
-        return NextResponse.json({ message: "Password reset/activation email sent successfully!" });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }

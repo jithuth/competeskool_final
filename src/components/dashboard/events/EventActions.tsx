@@ -5,8 +5,7 @@ import { MoreHorizontal, Edit, Trash, Eye, Loader2, Share2, Mail, ClipboardList,
 import Link from "next/link";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { sendBulkEventEmailAction } from "@/app/actions/admin";
+import { sendBulkEventEmailAction, deleteEventAction } from "@/app/actions/admin";
 
 import {
     DropdownMenu,
@@ -36,7 +35,6 @@ export function EventActions({ data }: EventActionsProps) {
     const [loading, setLoading] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
     const router = useRouter();
-    const supabase = createClient();
 
     const onShare = async () => {
         const url = `${window.location.origin}/competitions/${data.id}`;
@@ -60,12 +58,8 @@ export function EventActions({ data }: EventActionsProps) {
     const onDelete = async () => {
         try {
             setLoading(true);
-            const { error } = await supabase
-                .from("events")
-                .delete()
-                .eq("id", data.id);
-
-            if (error) throw error;
+            const res = await deleteEventAction(data.id);
+            if (res.error) throw new Error(res.error);
 
             router.refresh();
             toast.success("Competition deleted successfully.");

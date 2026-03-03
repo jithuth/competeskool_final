@@ -1,4 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
+import { APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
+import { Query } from "node-appwrite";
 import { notFound } from "next/navigation";
 import { Metadata } from "next";
 import Link from "next/link";
@@ -30,8 +32,15 @@ function verifyHash(badge: any): boolean {
 
 export async function generateMetadata({ params }: { params: Promise<{ credentialId: string }> }): Promise<Metadata> {
     const { credentialId } = await params;
-    const supabase = await createClient();
-    const { data: badge } = await supabase.from("badges").select("student_name, event_name, tier").eq("credential_id", credentialId).single();
+    const adminAppwrite = getAppwriteAdmin();
+    let badge: any = null;
+    try {
+        const bRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "badges", [
+            Query.equal("credential_id", credentialId)
+        ]);
+        if (bRes.documents.length > 0) badge = bRes.documents[0];
+    } catch (e) { }
+
     if (!badge) return { title: "Badge Not Found" };
     return {
         title: `${badge.student_name} — ${badge.event_name} | Verified Credential`,
@@ -46,8 +55,14 @@ export async function generateMetadata({ params }: { params: Promise<{ credentia
 
 export default async function VerifyBadgePage({ params }: { params: Promise<{ credentialId: string }> }) {
     const { credentialId } = await params;
-    const supabase = await createClient();
-    const { data: badge } = await supabase.from("badges").select("*").eq("credential_id", credentialId).single();
+    const adminAppwrite = getAppwriteAdmin();
+    let badge: any = null;
+    try {
+        const bRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "badges", [
+            Query.equal("credential_id", credentialId)
+        ]);
+        if (bRes.documents.length > 0) badge = bRes.documents[0];
+    } catch (e) { }
 
     if (!badge) notFound();
 

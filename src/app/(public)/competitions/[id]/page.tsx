@@ -1,4 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
+import { APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
+import { Query } from "node-appwrite";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { Calendar, ScrollText, Share2, Award, Info, ArrowLeft, Trophy, Clock, Video, Image as ImageIcon, Music, XCircle, Heart, ExternalLink } from "lucide-react";
@@ -17,13 +19,12 @@ export async function generateMetadata(
     parent: ResolvingMetadata
 ): Promise<Metadata> {
     const id = (await params).id;
-    const supabase = await createClient();
+    const adminAppwrite = getAppwriteAdmin();
 
-    const { data: event } = await supabase
-        .from("events")
-        .select("*, schools(name)")
-        .eq("id", id)
-        .single();
+    let event: any = null;
+    try {
+        event = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "events", id);
+    } catch (e) { }
 
     if (!event) return { title: "Event Not Found" };
 
@@ -38,20 +39,21 @@ export async function generateMetadata(
     };
 }
 
+export const dynamic = "force-dynamic";
+
 export default async function EventDetailPage({ params }: Props) {
     const id = (await params).id;
-    const supabase = await createClient();
+    const adminAppwrite = getAppwriteAdmin();
 
-    const { data: event } = await supabase
-        .from("events")
-        .select("*, schools(name)")
-        .eq("id", id)
-        .single();
+    let event: any = null;
+    try {
+        event = JSON.parse(JSON.stringify(await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "events", id)));
+    } catch (e) { }
 
     if (!event) notFound();
 
     const { getCurrentUserAction } = await import("@/app/actions/session");
-    const user = await getCurrentUserAction();
+    const user = JSON.parse(JSON.stringify(await getCurrentUserAction()));
     const userSchoolId = user?.school_id;
 
     // Access control for private events removed so all events are public
@@ -61,32 +63,66 @@ export default async function EventDetailPage({ params }: Props) {
     const votingOpen = isExpired && !["scoring_locked", "review", "published"].includes(event.results_status ?? "");
 
     // Fetch public submissions with vote counts
-    const { data: submissionsRaw } = await supabase
-        .from("submissions")
-        .select(`
-            id, title, description,
-            profiles!submissions_student_id_fkey(full_name, schools(name)),
-            submission_videos(type, youtube_url, vimeo_url, video_url)
-        `)
-        .eq("event_id", id)
-        .order("created_at", { ascending: false });
+    let submissionsRaw: any[] = [];
+    try {
+        const subRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "submissions", [
+            Query.equal("event_id", id),
+            Query.orderDesc("$createdAt")
+        ]);
+        submissionsRaw = subRes.documents;
+    } catch (e) { }
 
     // Get vote counts per submission
-    const submissionIds = submissionsRaw?.map(s => s.id) || [];
-    const { data: voteCounts } = await supabase
-        .from("submission_votes")
-        .select("submission_id")
-        .in("submission_id", submissionIds.length ? submissionIds : ["00000000-0000-0000-0000-000000000000"]);
+    const submissionIds = submissionsRaw?.map(s => s.$id) || [];
+    let voteCounts: any[] = [];
+    if (submissionIds && submissionIds.length > 0) {
+        try {
+            const vcRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "submission_votes", [
+                Query.equal("submission_id", submissionIds)
+            ]);
+            voteCounts = vcRes.documents;
+        } catch (e) { }
+    }
 
     const voteCountMap = new Map<string, number>();
     for (const v of voteCounts || []) {
         voteCountMap.set(v.submission_id, (voteCountMap.get(v.submission_id) || 0) + 1);
     }
 
-    const submissions = (submissionsRaw || []).map((s: any) => ({
-        ...s,
-        voteCount: voteCountMap.get(s.id) || 0,
-    }));
+    let submissions = await Promise.all(
+        submissionsRaw.map(async (s: any) => {
+            let p = null;
+            let vids: any[] = [];
+
+            try {
+                if (s.student_id) {
+                    p = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", s.student_id);
+                    if (p && p.school_id) {
+                        try {
+                            const sc = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "schools", p.school_id);
+                            p.schools = sc;
+                        } catch (e) { }
+                    }
+                }
+            } catch (e) { }
+
+            try {
+                const vRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "submission_videos", [
+                    Query.equal("submission_id", s.$id)
+                ]);
+                vids = vRes.documents;
+            } catch (e) { }
+
+            return {
+                ...s,
+                id: s.$id,
+                profiles: p,
+                submission_videos: vids,
+                voteCount: voteCountMap.get(s.$id) || 0,
+            };
+        })
+    );
+    submissions = JSON.parse(JSON.stringify(submissions));
 
     // Sort by votes descending for display
     submissions.sort((a: any, b: any) => b.voteCount - a.voteCount);

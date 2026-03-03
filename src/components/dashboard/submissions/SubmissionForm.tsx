@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
+import { createSubmissionAction, uploadFileAction } from "@/app/actions/admin";
 import { appwriteStorage, APPWRITE_BUCKET_ID } from "@/lib/appwrite/client";
 import { ID } from "appwrite";
 import { submissionSchema, SubmissionFormValues } from "@/lib/validations";
@@ -21,7 +21,6 @@ export function SubmissionForm({ events }: { events: any[] }) {
     const [loading, setLoading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const router = useRouter();
-    const supabase = createClient();
 
     const form = useForm<SubmissionFormValues>({
         resolver: zodResolver(submissionSchema),
@@ -43,15 +42,12 @@ export function SubmissionForm({ events }: { events: any[] }) {
             return;
         }
 
-        const { getCurrentUserAction } = await import('@/app/actions/session');
-        let user: any = null;
-        const sessionInfo = await getCurrentUserAction();
-        if (sessionInfo) { user = { id: sessionInfo.userId }; }
-
         try {
-            const res = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), file);
-            const publicUrl = appwriteStorage.getFileView(APPWRITE_BUCKET_ID, res.$id);
-            return { url: publicUrl.toString(), path: res.$id };
+            const formData = new FormData();
+            formData.append("file", file);
+            const res = await uploadFileAction(formData);
+            if (res.error) throw new Error(res.error);
+            return { url: res.url!, path: res.path! };
         } catch (uploadError: any) {
             toast.error(uploadError.message);
             return null;
@@ -60,10 +56,6 @@ export function SubmissionForm({ events }: { events: any[] }) {
 
     async function onSubmit(values: SubmissionFormValues) {
         setLoading(true);
-        const { getCurrentUserAction } = await import('@/app/actions/session');
-        let user = null;
-        const sessionInfo = await getCurrentUserAction();
-        if (sessionInfo) { user = { id: sessionInfo.userId }; }
 
         let videoData = { url: values.video_url, path: "" };
 
@@ -84,44 +76,26 @@ export function SubmissionForm({ events }: { events: any[] }) {
             }
         }
 
-        // Direct insert using Supabase
-        const { data: submission, error: subError } = await supabase
-            .from("submissions")
-            .insert({
-                title: values.title,
-                description: values.description,
-                event_id: values.event_id,
-                student_id: user?.id,
-                status: 'pending',
-            })
-            .select()
-            .single();
+        const res = await createSubmissionAction({
+            title: values.title,
+            description: values.description,
+            event_id: values.event_id,
+            media: {
+                video_url: values.type === 'youtube' ? undefined : videoData.url,
+                youtube_url: values.type === 'youtube' ? values.youtube_url : undefined,
+                storage_path: values.type === 'youtube' ? undefined : videoData.path,
+                type: values.type
+            }
+        });
 
-        if (subError) {
-            toast.error(subError.message);
-            setLoading(false);
-            return;
+        if (res.error) {
+            toast.error(res.error);
+        } else {
+            toast.success("Submission successfully uploaded!");
+            router.push("/dashboard/my-submissions");
+            router.refresh();
         }
-
-        const { error: videoError } = await supabase
-            .from("submission_videos")
-            .insert({
-                submission_id: submission.id,
-                video_url: values.type === 'youtube' ? null : videoData.url,
-                youtube_url: values.type === 'youtube' ? values.youtube_url : null,
-                storage_path: values.type === 'youtube' ? null : videoData.path,
-                type: values.type,
-            });
-
-        if (videoError) {
-            toast.error(videoError.message);
-            setLoading(false);
-            return;
-        }
-
-        toast.success("Submission successfully uploaded!");
-        router.push("/dashboard/my-submissions");
-        router.refresh();
+        setLoading(false);
     }
 
     return (

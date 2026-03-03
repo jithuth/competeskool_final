@@ -1,4 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
+import { createSessionClient } from "@/lib/appwrite/ssr";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
+import { APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
 import { redirect } from "next/navigation";
 import { Globe, ArrowRight, Settings, Image as ImageIcon, Layout } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,16 +8,19 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function CMSPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { account } = await createSessionClient();
+    let user = null;
+    try {
+        user = await account.get();
+    } catch (e) { }
 
     if (!user) redirect("/login");
 
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
+    const adminAppwrite = getAppwriteAdmin();
+    let profile: any = null;
+    try {
+        profile = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", user.$id);
+    } catch (e) { }
 
     if (profile?.role !== 'super_admin') redirect("/dashboard");
 

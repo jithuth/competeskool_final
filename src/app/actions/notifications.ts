@@ -1,7 +1,8 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { createSessionClient, APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
+import { ID, Query } from "node-appwrite";
 
 export async function createNotificationAction(data: {
     title: string;
@@ -10,45 +11,63 @@ export async function createNotificationAction(data: {
     recipient_role: string;
     event_id: string;
 }) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    try {
+        const { account, databases } = await createSessionClient();
+        const user = await account.get();
 
-    if (!user) return { error: "Unauthorized" };
+        if (!user) return { error: "Unauthorized" };
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        const adminAppwrite = getAppwriteAdmin();
 
-    if (!supabaseUrl || !serviceRoleKey) return { error: "Configuration Error" };
+        await adminAppwrite.databases.createDocument(APPWRITE_DATABASE_ID, "notifications", ID.unique(), {
+            title: data.title,
+            message: data.message,
+            type: data.type,
+            recipient_role: data.recipient_role,
+            event_id: data.event_id,
+            sender_id: user.$id
+        });
 
-    const adminSupabase = createSupabaseClient(supabaseUrl, serviceRoleKey);
-
-    const { error } = await adminSupabase.from('notifications').insert({
-        ...data,
-        sender_id: user.id
-    });
-
-    if (error) {
+        return { success: true };
+    } catch (error: any) {
         console.error("Notification Error:", error);
         return { error: error.message };
     }
-
-    return { success: true };
 }
 
 export async function getNotificationsAction() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    try {
+        const { account, databases } = await createSessionClient();
+        const user = await account.get();
 
-    if (!user) return [];
+        if (!user) return [];
 
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (!profile) return [];
+        const profile = await databases.getDocument(APPWRITE_DATABASE_ID, "profiles", user.$id);
+        if (!profile) return [];
 
-    const { data: notifications } = await supabase
-        .from('notifications')
-        .select('*, events(title)')
-        .eq('recipient_role', profile.role)
-        .order('created_at', { ascending: false });
+        const res = await databases.listDocuments(APPWRITE_DATABASE_ID, "notifications", [
+            Query.equal("recipient_role", profile.role),
+            Query.orderDesc("$createdAt")
+        ]);
 
-    return notifications || [];
+        const notifications: any[] = [];
+        for (const doc of res.documents) {
+            let eventTitle = "Event";
+            if (doc.event_id) {
+                try {
+                    const event = await databases.getDocument(APPWRITE_DATABASE_ID, "events", doc.event_id);
+                    eventTitle = event.title || eventTitle;
+                } catch (e) { }
+            }
+            notifications.push({
+                ...doc,
+                created_at: doc.$createdAt,
+                events: { title: eventTitle }
+            });
+        }
+
+        return notifications;
+    } catch (e) {
+        return [];
+    }
 }

@@ -1,23 +1,30 @@
-import { createClient } from "@/lib/supabase/server";
+import { createSessionClient, APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
 import { UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { TeacherForm } from "@/components/dashboard/teachers/TeacherForm";
-import { DataTable } from "@/components/ui/data-table";
-import { getColumns } from "@/components/dashboard/teachers/columns";
 import { redirect } from "next/navigation";
+import { Query } from "node-appwrite";
+import { TeachersDataTable } from "./TeachersDataTable";
 
 export default async function TeachersPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    let user;
+    try {
+        const { account } = await createSessionClient();
+        user = await account.get();
+    } catch (e) {
+        redirect("/login");
+    }
 
     if (!user) redirect("/login");
 
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("school_id, role")
-        .eq("id", user.id)
-        .single();
+    const adminAppwrite = getAppwriteAdmin();
+
+    let profile: any = null;
+    try {
+        profile = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", user.$id);
+    } catch (e) { }
 
     if (!profile || (profile.role !== 'school_admin' && profile.role !== 'super_admin')) {
         redirect("/dashboard");
@@ -25,52 +32,67 @@ export default async function TeachersPage() {
 
     const schoolId = profile?.school_id;
 
-    let query = supabase
-        .from("profiles")
-        .select(`
-          id,
-          full_name,
-          email,
-          status,
-          created_at,
-          school_id,
-          schools (name),
-          teachers (class_section)
-        `)
-        .eq("role", "teacher");
+    let queries = [
+        Query.equal("role", "teacher"),
+        Query.orderDesc("$createdAt")
+    ];
 
     let schoolsList: { id: string, name: string }[] = [];
     if (profile.role === 'super_admin') {
-        const { data: sData } = await supabase.from('schools').select('id, name').eq('status', 'approved').neq('id', '00000000-0000-0000-0000-000000000000').order('name');
-        if (sData) schoolsList = sData;
+        try {
+            const sData = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "schools", [
+                Query.equal("status", "approved"),
+                Query.orderAsc("name")
+            ]);
+
+            schoolsList = sData.documents.map(s => ({
+                id: s.$id,
+                name: s.name
+            }));
+        } catch (e) { }
     }
 
     if (profile.role === 'school_admin') {
         if (!schoolId) {
             console.error("School Admin has no school_id!");
-            // return <div>Error: School Admin profile is missing institution link.</div>;
         } else {
-            query = query.eq("school_id", schoolId);
+            queries.push(Query.equal("school_id", schoolId));
         }
     }
 
-    const { data: teachers, error: fetchError } = await query;
-    if (fetchError) {
-        console.error("Error fetching teachers:", fetchError);
-    }
+    let teachersRaw: any[] = [];
+    try {
+        const tRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "profiles", queries);
+        teachersRaw = tRes.documents;
+    } catch (e) { }
 
-    const formattedTeachers = teachers?.map((t: any) => {
-        const teacherData = Array.isArray(t.teachers) ? t.teachers[0] : t.teachers;
-        return {
-            id: t.id,
-            full_name: t.full_name,
-            email: t.email,
-            status: t.status,
-            created_at: t.created_at,
-            school_name: t.schools?.name || "N/A",
-            class_section: teacherData?.class_section || "N/A",
-        };
-    }) || [];
+    const formattedTeachers = await Promise.all(
+        teachersRaw.map(async (t: any) => {
+            let schoolName = "N/A";
+            if (t.school_id) {
+                try {
+                    const sc = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "schools", t.school_id);
+                    schoolName = sc.name;
+                } catch (e) { }
+            }
+
+            let teacherData: any = null;
+            try {
+                // Assuming document id of teacher is equivalent to profile id
+                teacherData = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "teachers", t.$id);
+            } catch (e) { }
+
+            return {
+                id: t.$id,
+                full_name: t.full_name,
+                email: t.email,
+                status: t.status,
+                created_at: t.$createdAt,
+                school_name: schoolName,
+                class_section: teacherData?.class_section || "N/A",
+            };
+        })
+    );
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
@@ -105,6 +127,3 @@ export default async function TeachersPage() {
         </div>
     );
 }
-
-// Client wrapper to execute getColumns on the client
-import { TeachersDataTable } from "./TeachersDataTable";

@@ -1,28 +1,34 @@
-import { createClient } from "@/lib/supabase/server";
 import { DataTable } from "@/components/ui/data-table";
 import { columns } from "@/components/dashboard/events/columns";
 import { CreateEventButton } from "@/components/dashboard/events/CreateEventButton";
 import { EventCard } from "@/components/dashboard/events/EventCard";
 import { getCurrentUserAction } from "@/app/actions/session";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
+import { APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
+import { Query } from "node-appwrite";
 
 export const dynamic = 'force-dynamic';
 
 export default async function EventsPage() {
-    const supabase = await createClient();
     const session = await getCurrentUserAction();
     const isSuperAdmin = session?.role === 'super_admin';
     const userRole = session?.role as any;
 
-    const { data: allEvents, error: eventsError } = await supabase
-        .from("events")
-        .select("*, schools(name)")
-        .order("created_at", { ascending: false });
-
-    if (eventsError) {
-        console.error("Database Fetch Error (Events):", eventsError);
+    let allEvents: any[] = [];
+    try {
+        const adminAppwrite = getAppwriteAdmin();
+        const res = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "events", [
+            Query.orderDesc("$createdAt")
+        ]);
+        allEvents = res.documents.map(doc => ({
+            ...doc,
+            id: doc.$id // Map Appwrite ID for existing components
+        }));
+    } catch (e) {
+        console.error("Database Fetch Error (Events):", e);
     }
 
-    const events = isSuperAdmin ? allEvents : allEvents?.filter(event => {
+    const events = isSuperAdmin ? allEvents : allEvents?.filter((event: any) => {
         if (!event.is_private) return true;
         return event.school_id === session?.school_id;
     });
@@ -53,7 +59,7 @@ export default async function EventsPage() {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-150">
-                    {(events || []).map((event) => (
+                    {(events || []).map((event: any) => (
                         <EventCard key={event.id} event={event} role={userRole} />
                     ))}
                     {(events || []).length === 0 && (

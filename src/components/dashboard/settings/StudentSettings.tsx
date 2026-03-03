@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
+import { updateSelfProfileAction } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import {
     Form,
@@ -30,7 +30,6 @@ type StudentFormValues = z.infer<typeof studentSchema>;
 
 export function StudentSettings({ initialData, profileId }: { initialData: any, profileId: string }) {
     const [loading, setLoading] = useState(false);
-    const supabase = createClient();
     const router = useRouter();
 
     const form = useForm<StudentFormValues>({
@@ -45,13 +44,10 @@ export function StudentSettings({ initialData, profileId }: { initialData: any, 
 
     async function onSubmit(values: StudentFormValues) {
         setLoading(true);
-        const { error } = await supabase
-            .from("students")
-            .update(values)
-            .eq("id", profileId);
+        const res = await updateSelfProfileAction(values);
 
-        if (error) {
-            toast.error(error.message);
+        if (res.error) {
+            toast.error(res.error);
         } else {
             toast.success("Student profile updated!");
             router.refresh();

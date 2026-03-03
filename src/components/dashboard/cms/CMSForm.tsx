@@ -9,8 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { saveSiteSettingsAction, saveSeoConfigAction } from "@/app/actions/cms";
-import { createClient } from "@/lib/supabase/client";
-import { appwriteStorage, APPWRITE_BUCKET_ID } from "@/lib/appwrite/client";
+import { uploadFileAction } from "@/app/actions/admin";
 import { ID } from "appwrite";
 import {
     Layout,
@@ -45,7 +44,6 @@ export function CMSForm({ initialSettings, initialSeo }: { initialSettings: any[
     const [settings, setSettings] = useState<Setting[]>(initialSettings);
     const [seo, setSeo] = useState<SeoConfig[]>(initialSeo);
     const [loading, setLoading] = useState(false);
-    const supabase = createClient();
 
     const handleSettingChange = (key: string, value: string) => {
         setSettings(prev => prev.map(s => s.key === key ? { ...s, value } : s));
@@ -57,9 +55,13 @@ export function CMSForm({ initialSettings, initialSeo }: { initialSettings: any[
 
     const handleImageUpload = async (key: string, file: File) => {
         try {
-            const res = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), file);
-            const publicUrl = appwriteStorage.getFileView(APPWRITE_BUCKET_ID, res.$id);
-            handleSettingChange(key, publicUrl.toString());
+            const formData = new FormData();
+            formData.append("file", file);
+            const res = await uploadFileAction(formData);
+
+            if (res.error) throw new Error(res.error);
+
+            handleSettingChange(key, res.url!);
             toast.success("Image uploaded successfully");
         } catch (error: any) {
             toast.error(error.message);

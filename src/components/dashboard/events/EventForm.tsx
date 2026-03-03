@@ -5,15 +5,13 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
-import { appwriteStorage, APPWRITE_BUCKET_ID } from "@/lib/appwrite/client";
+import { saveEventAction, getApprovedSchoolsAction, uploadFileAction } from "@/app/actions/admin";
 import { ID } from "appwrite";
 import { eventSchema, EventFormValues } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { saveEventAction } from "@/app/actions/admin";
 import RichTextEditor from "@/components/ui/RichTextEditor";
 
 import {
@@ -61,15 +59,14 @@ export function EventForm({ initialData, onSuccess }: { initialData?: any, onSuc
     const [bannerPreview, setBannerPreview] = useState<string>(initialData?.banner_url || "");
     const [schools, setSchools] = useState<any[]>([]);
     const router = useRouter();
-    const supabase = createClient();
 
     useEffect(() => {
         async function fetchSchools() {
-            const { data } = await supabase.from("schools").select("id, name").eq("status", "approved");
-            if (data) setSchools(data);
+            const res = await getApprovedSchoolsAction();
+            if (res.data) setSchools(res.data);
         }
         fetchSchools();
-    }, [supabase]);
+    }, []);
 
     const now = new Date();
     const thirtyDaysLater = new Date();
@@ -128,9 +125,11 @@ export function EventForm({ initialData, onSuccess }: { initialData?: any, onSuc
 
             // 1. Upload Banner if exists
             if (bannerFile) {
-                const res = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), bannerFile);
-                const publicUrl = appwriteStorage.getFileView(APPWRITE_BUCKET_ID, res.$id);
-                finalBannerUrl = publicUrl.toString();
+                const formData = new FormData();
+                formData.append("file", bannerFile);
+                const uploadRes = await uploadFileAction(formData);
+                if (uploadRes.error) throw new Error(uploadRes.error);
+                finalBannerUrl = uploadRes.url!;
             }
 
             const dataToSave = {
@@ -271,7 +270,7 @@ export function EventForm({ initialData, onSuccess }: { initialData?: any, onSuc
                                                         </FormControl>
                                                         <SelectContent className="rounded-lg">
                                                             {schools.map(s => (
-                                                                <SelectItem key={s.id} value={s.id} className="py-2 text-sm">
+                                                                <SelectItem key={s.$id} value={s.$id} className="py-2 text-sm">
                                                                     {s.name}
                                                                 </SelectItem>
                                                             ))}

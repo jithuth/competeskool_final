@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
 import { submissionSchema, SubmissionFormValues } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,13 +12,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Loader2, Rocket, Save, ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { updateSubmissionAction } from "@/app/actions/admin";
+import { appwriteDatabases, appwriteAccount, APPWRITE_DATABASE_ID } from "@/lib/appwrite/client";
+import { Query } from "appwrite";
 
 export default function EditSubmissionPage({ params }: { params: { id: string } }) {
     const { id } = params;
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const router = useRouter();
-    const supabase = createClient();
 
     const form = useForm<SubmissionFormValues>({
         resolver: zodResolver(submissionSchema),
@@ -33,89 +34,81 @@ export default function EditSubmissionPage({ params }: { params: { id: string } 
 
     useEffect(() => {
         async function loadSubmission() {
-            const { data: { user } } = await supabase.auth.getUser();
+            let user;
+            try {
+                user = await appwriteAccount.get();
+            } catch (e) {
+                router.push("/login");
+                return;
+            }
+
             if (!user) {
                 router.push("/login");
                 return;
             }
 
-            const { data: sub, error } = await supabase
-                .from("submissions")
-                .select("*, submission_videos(*)")
-                .eq("id", id)
-                .single();
+            try {
+                const sub = await appwriteDatabases.getDocument(APPWRITE_DATABASE_ID, "submissions", id);
 
-            if (error || !sub) {
+                if (sub.student_id !== user.$id) {
+                    toast.error("Unauthorized");
+                    router.push("/dashboard/my-submissions");
+                    return;
+                }
+
+                if (sub.status !== 'pending') {
+                    toast.error("Only pending submissions can be edited");
+                    router.push("/dashboard/my-submissions");
+                    return;
+                }
+
+                // Fetch submission videos
+                const videosRes = await appwriteDatabases.listDocuments(APPWRITE_DATABASE_ID, "submission_videos", [
+                    Query.equal("submission_id", id)
+                ]);
+                const video = videosRes.documents[0];
+
+                form.reset({
+                    title: sub.title,
+                    description: sub.description,
+                    event_id: sub.event_id,
+                    type: video?.type || "upload",
+                    youtube_url: video?.youtube_url || "",
+                    video_url: video?.video_url || "placeholder", // Validating against schema but not used for update here
+                });
+                setLoading(false);
+            } catch (e) {
                 toast.error("Submission not found");
                 router.push("/dashboard/my-submissions");
                 return;
             }
-
-            if (sub.student_id !== user.id) {
-                toast.error("Unauthorized");
-                router.push("/dashboard/my-submissions");
-                return;
-            }
-
-            if (sub.status !== 'pending') {
-                toast.error("Only pending submissions can be edited");
-                router.push("/dashboard/my-submissions");
-                return;
-            }
-
-            const video = sub.submission_videos?.[0];
-            form.reset({
-                title: sub.title,
-                description: sub.description,
-                event_id: sub.event_id,
-                type: video?.type || "upload",
-                youtube_url: video?.youtube_url || "",
-                video_url: video?.video_url || "placeholder", // Validating against schema but not used for update here
-            });
-            setLoading(false);
         }
         loadSubmission();
-    }, [id, supabase, router, form]);
+    }, [id, router, form]);
 
     async function onSubmit(values: SubmissionFormValues) {
         setSaving(true);
 
-        // Update main submission details
-        const { error: subError } = await supabase
-            .from("submissions")
-            .update({
+        try {
+            const res = await updateSubmissionAction(id, {
                 title: values.title,
                 description: values.description,
-            })
-            .eq("id", id);
+                youtube_url: values.type === 'youtube' ? values.youtube_url : undefined
+            });
 
-        if (subError) {
-            toast.error(subError.message);
-            setSaving(false);
-            return;
-        }
-
-        // Update video details if it's a youtube link
-        if (values.type === 'youtube') {
-            const { error: videoError } = await supabase
-                .from("submission_videos")
-                .update({
-                    youtube_url: values.youtube_url,
-                    video_url: null,
-                    storage_path: null,
-                })
-                .eq("submission_id", id);
-
-            if (videoError) {
-                toast.error(videoError.message);
+            if (res.error) {
+                toast.error(res.error);
                 setSaving(false);
                 return;
             }
-        }
 
-        toast.success("Submission updated successfully!");
-        router.push("/dashboard/my-submissions");
-        router.refresh();
+            toast.success("Submission updated successfully!");
+            router.push("/dashboard/my-submissions");
+            router.refresh();
+        } catch (error: any) {
+            toast.error(error.message || "Failed to update submission");
+            setSaving(false);
+        }
     }
 
     if (loading) {

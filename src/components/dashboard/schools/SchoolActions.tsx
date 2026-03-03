@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
+import { updateSchoolStatusAction, deleteSchoolAction } from "@/app/actions/admin";
 import { useRouter } from "next/navigation";
 import { sendApprovalNotification } from "@/lib/notifications";
 import { SchoolColumn } from "./columns";
@@ -46,43 +46,22 @@ export function SchoolActions({ school }: SchoolActionsProps) {
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [resending, setResending] = useState(false);
-    const supabase = createClient();
     const router = useRouter();
 
     const updateStatus = async (status: 'approved' | 'rejected') => {
         setLoading(true);
-        const { error } = await supabase
-            .from("schools")
-            .update({ status })
-            .eq("id", school.id);
+        const res = await updateSchoolStatusAction(school.id, status, school.admin_email, school.name);
 
-        if (error) {
-            toast.error(error.message);
+        if (res.error) {
+            toast.error(res.error);
             setLoading(false);
             return;
         }
 
         if (status === 'approved') {
-            // Update the profile of the person who registered the school
-            // This ensures they are promoted to school_admin and linked to the school
-            await supabase
-                .from("profiles")
-                .update({
-                    status: 'approved',
-                    role: 'school_admin',
-                    school_id: school.id
-                })
-                .eq("email", school.admin_email);
-
             await sendApprovalNotification(school.admin_email, school.name);
             toast.success(`School approved and admin activated!`);
         } else if (status === 'rejected') {
-            // If we are rejecting an already approved school, we should probably set the admin back to pending
-            await supabase
-                .from("profiles")
-                .update({ status: 'pending' })
-                .eq("email", school.admin_email);
-
             toast.success(`School disapproved and admin access revoked.`);
         }
 
@@ -121,21 +100,17 @@ export function SchoolActions({ school }: SchoolActionsProps) {
         }
 
         setLoading(true);
-        try {
-            const { error } = await supabase
-                .from("schools")
-                .delete()
-                .eq("id", school.id);
+        const res = await deleteSchoolAction(school.id);
 
-            if (error) throw error;
-
-            toast.success("School deleted successfully");
-            router.refresh();
-        } catch (error: any) {
-            toast.error(error.message || "Failed to delete school");
-        } finally {
+        if (res.error) {
+            toast.error(res.error);
             setLoading(false);
+            return;
         }
+
+        toast.success("School deleted successfully");
+        setLoading(false);
+        router.refresh();
     };
 
     return (

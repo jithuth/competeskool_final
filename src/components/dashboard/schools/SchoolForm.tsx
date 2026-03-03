@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
+import { saveSchoolAction } from "@/app/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +24,6 @@ type SchoolFormValues = z.infer<typeof schoolSchema>;
 export function SchoolForm({ initialData, onSuccess }: { initialData?: any, onSuccess?: () => void }) {
     const [loading, setLoading] = useState(false);
     const router = useRouter();
-    const supabase = createClient();
 
     const form = useForm<SchoolFormValues>({
         resolver: zodResolver(schoolSchema),
@@ -37,27 +36,19 @@ export function SchoolForm({ initialData, onSuccess }: { initialData?: any, onSu
 
     async function onSubmit(values: SchoolFormValues) {
         setLoading(true);
-        let result;
-        if (initialData?.id) {
-            result = await supabase
-                .from("schools")
-                .update(values)
-                .eq("id", initialData.id);
+        const res = await saveSchoolAction({
+            ...values,
+            id: initialData?.id
+        });
+
+        if (res.error) {
+            toast.error(res.error);
         } else {
-            result = await supabase
-                .from("schools")
-                .insert(values);
+            toast.success(initialData?.id ? "School updated!" : "School created!");
+            if (onSuccess) onSuccess();
+            router.refresh();
         }
-
-        if (result.error) {
-            toast.error(result.error.message);
-            setLoading(false);
-            return;
-        }
-
-        toast.success(initialData?.id ? "School updated!" : "School created!");
-        if (onSuccess) onSuccess();
-        router.refresh();
+        setLoading(false);
     }
 
     return (

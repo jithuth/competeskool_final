@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
-import { appwriteStorage, APPWRITE_BUCKET_ID } from "@/lib/appwrite/client";
-import { ID } from "appwrite";
+import { appwriteStorage, appwriteDatabases, APPWRITE_BUCKET_ID, APPWRITE_DATABASE_ID } from "@/lib/appwrite/client";
+import { ID, Query } from "appwrite";
 import { submissionSchema, SubmissionFormValues } from "@/lib/validations";
+import { createSubmissionAction, uploadFileAction } from "@/app/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -127,13 +127,18 @@ async function uploadDirectToAppwrite(
     }, 300);
 
     try {
-        const res = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), file);
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await uploadFileAction(formData);
+
+        if (res.error) throw new Error(res.error);
+
         clearInterval(fakeInterval);
         onProgress(100);
 
-        const publicUrl = appwriteStorage.getFileView(APPWRITE_BUCKET_ID, res.$id);
-        return { url: publicUrl.toString(), path: res.$id };
-    } catch (err) {
+        return { url: res.url!, path: res.path! };
+    } catch (err: any) {
         clearInterval(fakeInterval);
         throw err;
     }
@@ -153,14 +158,14 @@ export function SubmissionWizard({ events, initialEventId }: { events: any[]; in
         path?: string;
         youtubeUrl?: string;
         youtubeId?: string;
-        storageType?: "youtube" | "supabase";
+        storageType?: "youtube" | "appwrite";
         compressed?: boolean;
         savings?: string;
     } | null>(null);
     const [uploadStats, setUploadStats] = useState<{ originalMb: string; finalMb: string; savings: string } | null>(null);
 
     const router = useRouter();
-    const supabase = createClient();
+    // Appwrite replaces Supabase
 
     const form = useForm<SubmissionFormValues>({
         resolver: zodResolver(submissionSchema),
@@ -241,7 +246,7 @@ export function SubmissionWizard({ events, initialEventId }: { events: any[]; in
                 // ── Audio / image / document → direct Appwrite upload ──
                 setUploadPhase("uploading");
                 const result = await uploadDirectToAppwrite(file, sessionInfo.userId!, setUploadProgress);
-                setProcessedMedia({ url: result.url, path: result.path, storageType: "supabase" }); // default storage enum
+                setProcessedMedia({ url: result.url, path: result.path, storageType: "appwrite" }); // default storage enum
                 toast.success("File uploaded successfully!");
             }
 
@@ -301,52 +306,29 @@ export function SubmissionWizard({ events, initialEventId }: { events: any[]; in
         const userId = sessionInfo?.userId;
         const mediaData = processedMedia || { url: "", path: "" };
 
-        // Prevent duplicate submissions
-        const { data: existing } = await supabase
-            .from("submissions")
-            .select("id")
-            .eq("event_id", values.event_id)
-            .eq("student_id", userId)
-            .maybeSingle();
-
-        if (existing) {
-            toast.error("You have already submitted to this competition.");
-            setLoading(false);
-            return;
-        }
-
-        const { data: submission, error: subError } = await supabase
-            .from("submissions")
-            .insert({
+        try {
+            const res = await createSubmissionAction({
                 title: values.title,
                 description: values.description,
                 event_id: values.event_id,
-                student_id: userId,
-                status: "pending",
-            })
-            .select()
-            .single();
+                media: {
+                    video_url: processedMedia?.storageType === "appwrite" ? (processedMedia.url || undefined) : undefined,
+                    youtube_url: processedMedia?.storageType === "youtube" ? (processedMedia.youtubeUrl || undefined) : undefined,
+                    vimeo_url: values.type === "vimeo" ? values.vimeo_url : undefined,
+                    storage_path: processedMedia?.path || undefined,
+                    type: processedMedia?.storageType === "youtube" ? "youtube"
+                        : values.type === "vimeo" ? "vimeo"
+                            : "upload"
+                }
+            });
 
-        if (subError) {
-            toast.error(subError.message);
-            setLoading(false);
-            return;
-        }
-
-        const { error: videoError } = await supabase.from("submission_videos").insert({
-            submission_id: submission.id,
-            // YouTube auto-upload: save as youtube type with youtube_url
-            video_url: processedMedia?.storageType === "supabase" ? (processedMedia.url || null) : null,
-            youtube_url: processedMedia?.storageType === "youtube" ? (processedMedia.youtubeUrl || null) : null,
-            vimeo_url: values.type === "vimeo" ? values.vimeo_url : null,
-            storage_path: processedMedia?.path || null,
-            type: processedMedia?.storageType === "youtube" ? "youtube"
-                : values.type === "vimeo" ? "vimeo"
-                    : "upload",
-        });
-
-        if (videoError) {
-            toast.error(videoError.message);
+            if (res.error) {
+                toast.error(res.error);
+                setLoading(false);
+                return;
+            }
+        } catch (err: any) {
+            toast.error(err.message || "An error occurred during submission.");
             setLoading(false);
             return;
         }

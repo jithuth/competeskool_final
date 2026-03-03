@@ -1,18 +1,37 @@
-import { createClient } from "@/lib/supabase/server";
+import { getAppwriteAdmin } from "@/lib/appwrite/server";
+import { APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
+import { Query } from "node-appwrite";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, User, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 export default async function NewsPage() {
-    const supabase = await createClient();
-    const { data: newsItems } = await supabase
-        .from("news")
-        .select(`
-      *,
-      profiles (full_name)
-    `)
-        .order("published_at", { ascending: false });
+    const adminAppwrite = getAppwriteAdmin();
+
+    let newsItemsRaw: any[] = [];
+    try {
+        const res = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "news", [
+            Query.orderDesc("published_at")
+        ]);
+        newsItemsRaw = res.documents;
+    } catch (e) { }
+
+    const newsItems = JSON.parse(JSON.stringify(await Promise.all(
+        newsItemsRaw.map(async (news) => {
+            let authorProfile = null;
+            if (news.created_by) {
+                try {
+                    authorProfile = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", news.created_by);
+                } catch (e) { }
+            }
+            return {
+                ...news,
+                id: news.$id,
+                profiles: authorProfile
+            };
+        })
+    )));
 
     return (
         <div className="bg-[#080B1A] min-h-screen py-32">
@@ -33,7 +52,7 @@ export default async function NewsPage() {
 
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 relative z-10">
                     {newsItems && newsItems.length > 0 ? (
-                        newsItems.map((news) => (
+                        newsItems.map((news: any) => (
                             <div key={news.id} className="group overflow-hidden flex flex-col rounded-[2.5rem] bg-slate-900/40 backdrop-blur-md border border-slate-800 hover:border-slate-700 hover:shadow-2xl hover:shadow-primary/5 transition-all duration-500">
                                 <div className="aspect-video relative overflow-hidden bg-slate-950/50 border-b border-slate-800 flex-shrink-0">
                                     {news.image_url ? (

@@ -20,7 +20,7 @@ import {
     AlertCircle,
     Building2
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { getSchoolStatsAction } from "@/app/actions/admin";
 import { useEffect } from "react";
 import { SchoolColumn } from "./columns";
 
@@ -33,36 +33,21 @@ interface SchoolDetailsModalProps {
 export function SchoolDetailsModal({ school, isOpen, onClose }: SchoolDetailsModalProps) {
     const [stats, setStats] = useState({ teachers: 0, students: 0 });
     const [loading, setLoading] = useState(true);
-    const supabase = createClient();
 
     useEffect(() => {
         if (isOpen && school.id) {
             async function fetchStats() {
                 setLoading(true);
+                const res = await getSchoolStatsAction(school.id);
 
-                // Get teacher count
-                const { count: teacherCount } = await supabase
-                    .from("profiles")
-                    .select("*", { count: "exact", head: true })
-                    .eq("school_id", school.id)
-                    .eq("role", "teacher");
-
-                // Get student count
-                const { count: studentCount } = await supabase
-                    .from("profiles")
-                    .select("*", { count: "exact", head: true })
-                    .eq("school_id", school.id)
-                    .eq("role", "student");
-
-                setStats({
-                    teachers: teacherCount || 0,
-                    students: studentCount || 0
-                });
+                if (res.data) {
+                    setStats(res.data);
+                }
                 setLoading(false);
             }
             fetchStats();
         }
-    }, [isOpen, school.id, supabase]);
+    }, [isOpen, school.id]);
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
