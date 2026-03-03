@@ -2,10 +2,20 @@ import { Client, Account, Databases } from 'node-appwrite';
 import { cookies } from 'next/headers';
 
 export const APPWRITE_ENDPOINT = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1";
-export const APPWRITE_PROJECT_ID = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || "";
+export const APPWRITE_PROJECT_ID = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
 export const APPWRITE_DATABASE_ID = "schoolproject_db";
 
 export const SESSION_COOKIE = 'appwrite-session';
+
+/**
+ * Validates the project ID and returns it, or throws an error.
+ */
+function getValidatedProjectId() {
+    if (!APPWRITE_PROJECT_ID) {
+        throw new Error("Missing NEXT_PUBLIC_APPWRITE_PROJECT_ID environment variable. The X-Appwrite-Project header is required for all requests.");
+    }
+    return APPWRITE_PROJECT_ID;
+}
 
 /**
  * Creates an Appwrite Server Client that identifies via the user's Session Cookie.
@@ -14,7 +24,7 @@ export const SESSION_COOKIE = 'appwrite-session';
 export async function createSessionClient() {
     const client = new Client()
         .setEndpoint(APPWRITE_ENDPOINT)
-        .setProject(APPWRITE_PROJECT_ID);
+        .setProject(getValidatedProjectId());
 
     const cookieStore = await cookies();
     const session = cookieStore.get(SESSION_COOKIE);
@@ -38,10 +48,15 @@ export async function createSessionClient() {
  * Useful for bypassing RLS / Collection-level permissions securely inside server actions.
  */
 export async function createAdminClient() {
+    const apiKey = process.env.APPWRITE_API_KEY;
+    if (!apiKey) {
+        throw new Error("Missing APPWRITE_API_KEY environment variable. The X-Appwrite-Key header is required for server-side administration.");
+    }
+
     const client = new Client()
         .setEndpoint(APPWRITE_ENDPOINT)
-        .setProject(APPWRITE_PROJECT_ID)
-        .setKey(process.env.APPWRITE_API_KEY!);
+        .setProject(getValidatedProjectId())
+        .setKey(apiKey);
 
     return {
         get account() {

@@ -1,11 +1,15 @@
 import { Client, Storage, Databases, Account } from 'appwrite';
 
 const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1";
-const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || "";
+const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
+
+if (!projectId && typeof window !== 'undefined') {
+    console.warn("⚠️ Missing NEXT_PUBLIC_APPWRITE_PROJECT_ID environment variable. All Appwrite requests will fail with a 'Missing Project Header' error.");
+}
 
 const client = new Client()
     .setEndpoint(endpoint)
-    .setProject(projectId);
+    .setProject(projectId || ""); // Default to empty string to avoid crash, but warning will be logged
 
 export const appwriteStorage = new Storage(client);
 export const appwriteDatabases = new Databases(client);
