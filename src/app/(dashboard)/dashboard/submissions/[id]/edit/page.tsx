@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -15,8 +15,9 @@ import Link from "next/link";
 import { updateSubmissionAction, getSubmissionForEditAction } from "@/app/actions/admin";
 import { appwriteAccount } from "@/lib/appwrite/client";
 
-export default function EditSubmissionPage({ params }: { params: { id: string } }) {
-    const { id } = params;
+export default function EditSubmissionPage() {
+    const params = useParams();
+    const id = params.id as string;
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const router = useRouter();
