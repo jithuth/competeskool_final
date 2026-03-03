@@ -163,6 +163,7 @@ export default async function EvaluateSubmissionPage({ params }: { params: Promi
                                 submissionTitle={submission.title || "Untitled"}
                                 studentName={student?.full_name || "Unknown"}
                                 isLocked={isLocked}
+                                isReadOnly={profile?.role !== "judge"}
                             />
                         </div>
                     )}

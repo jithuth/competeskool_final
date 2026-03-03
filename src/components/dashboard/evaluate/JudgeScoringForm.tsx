@@ -32,6 +32,7 @@ interface JudgeScoringFormProps {
     submissionTitle: string;
     studentName: string;
     isLocked: boolean;
+    isReadOnly?: boolean;
 }
 
 export function JudgeScoringForm({
@@ -41,7 +42,8 @@ export function JudgeScoringForm({
     eventTitle,
     submissionTitle,
     studentName,
-    isLocked
+    isLocked,
+    isReadOnly = false
 }: JudgeScoringFormProps) {
     const [scores, setScores] = useState<ScoreEntry[]>(
         criteria.map(c => {
@@ -149,7 +151,7 @@ export function JudgeScoringForm({
                             <span>{activeCriterion.max_score}</span>
                         </div>
 
-                        {isLocked ? (
+                        {isLocked || isReadOnly ? (
                             <div className="relative h-4">
                                 <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
                                     <div className="h-full rounded-full bg-indigo-400" style={{ width: `${scorePercentage}%` }} />
@@ -188,7 +190,7 @@ export function JudgeScoringForm({
                             placeholder="Specific observations on this criterion..."
                             className="rounded-xl min-h-[80px] resize-none text-sm"
                             rows={3}
-                            disabled={isLocked}
+                            disabled={isLocked || isReadOnly}
                         />
                     </div>
 
@@ -217,7 +219,7 @@ export function JudgeScoringForm({
                     <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all" style={{ width: `${weightedTotal}%` }} />
                 </div>
 
-                {!isLocked && (
+                {!isLocked && !isReadOnly && (
                     <Button
                         onClick={handleSubmit}
                         disabled={loading}
@@ -227,7 +229,12 @@ export function JudgeScoringForm({
                         Submit Evaluation
                     </Button>
                 )}
-                {isLocked && (
+                {isReadOnly && (
+                    <Badge className="w-full justify-center h-10 rounded-xl bg-indigo-50 text-indigo-700 font-black text-xs uppercase tracking-widest border border-indigo-100">
+                        View Only: Only assigned judges can evaluate
+                    </Badge>
+                )}
+                {isLocked && !isReadOnly && (
                     <Badge className="w-full justify-center h-10 rounded-xl bg-amber-100 text-amber-700 font-black text-xs uppercase tracking-widest">
                         Scoring Locked by Administrator
                     </Badge>

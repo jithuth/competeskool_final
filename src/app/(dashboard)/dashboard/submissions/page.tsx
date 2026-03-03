@@ -29,6 +29,10 @@ export default async function SubmissionsRegistryPage() {
         profile = JSON.parse(JSON.stringify(profileRaw));
     } catch (e) { }
 
+    if (!profile || profile.role !== 'super_admin') {
+        redirect("/dashboard");
+    }
+
     // Fetch all submissions with events and profiles
     let submissions: any[] = [];
     try {

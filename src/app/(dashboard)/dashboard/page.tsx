@@ -377,21 +377,23 @@ export default async function DashboardPage() {
                 </div>
             )}
 
-            {/* Unified Submissions Table */}
-            <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-rose-600/10 flex items-center justify-center text-rose-600">
-                            <TrendingUp className="w-6 h-6" />
+            {/* Unified Submissions Table — Restricted to Super Admin or Students (their own logs) */}
+            {(isSuperAdmin || profile?.role === 'student') && (
+                <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-rose-600/10 flex items-center justify-center text-rose-600">
+                                <TrendingUp className="w-6 h-6" />
+                            </div>
+                            <h2 className="text-2xl font-black font-outfit uppercase tracking-tight">
+                                {profile?.role === 'student' ? "Your Mission Logs" : "Global Transmission Feed"}
+                            </h2>
                         </div>
-                        <h2 className="text-2xl font-black font-outfit uppercase tracking-tight">
-                            {profile?.role === 'student' ? "Your Mission Logs" : "Global Transmission Feed"}
-                        </h2>
                     </div>
-                </div>
 
-                <SubmissionsTable submissions={recentSubmissions || []} role={profile?.role || 'student'} />
-            </div>
+                    <SubmissionsTable submissions={recentSubmissions || []} role={profile?.role || 'student'} />
+                </div>
+            )}
 
 
         </div>

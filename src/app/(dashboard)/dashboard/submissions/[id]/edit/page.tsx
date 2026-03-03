@@ -12,9 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Loader2, Rocket, Save, ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { updateSubmissionAction } from "@/app/actions/admin";
-import { appwriteDatabases, appwriteAccount, APPWRITE_DATABASE_ID } from "@/lib/appwrite/client";
-import { Query } from "appwrite";
+import { updateSubmissionAction, getSubmissionForEditAction } from "@/app/actions/admin";
+import { appwriteAccount } from "@/lib/appwrite/client";
 
 export default function EditSubmissionPage({ params }: { params: { id: string } }) {
     const { id } = params;
@@ -34,54 +33,25 @@ export default function EditSubmissionPage({ params }: { params: { id: string } 
 
     useEffect(() => {
         async function loadSubmission() {
-            let user;
-            try {
-                user = await appwriteAccount.get();
-            } catch (e) {
-                router.push("/login");
-                return;
-            }
+            const res = await getSubmissionForEditAction(id);
 
-            if (!user) {
-                router.push("/login");
-                return;
-            }
-
-            try {
-                const sub = await appwriteDatabases.getDocument(APPWRITE_DATABASE_ID, "submissions", id);
-
-                if (sub.student_id !== user.$id) {
-                    toast.error("Unauthorized");
-                    router.push("/dashboard/my-submissions");
-                    return;
-                }
-
-                if (sub.status !== 'pending') {
-                    toast.error("Only pending submissions can be edited");
-                    router.push("/dashboard/my-submissions");
-                    return;
-                }
-
-                // Fetch submission videos
-                const videosRes = await appwriteDatabases.listDocuments(APPWRITE_DATABASE_ID, "submission_videos", [
-                    Query.equal("submission_id", id)
-                ]);
-                const video = videosRes.documents[0];
-
-                form.reset({
-                    title: sub.title,
-                    description: sub.description,
-                    event_id: sub.event_id,
-                    type: video?.type || "upload",
-                    youtube_url: video?.youtube_url || "",
-                    video_url: video?.video_url || "placeholder", // Validating against schema but not used for update here
-                });
-                setLoading(false);
-            } catch (e) {
-                toast.error("Submission not found");
+            if (res.error) {
+                toast.error(res.error);
                 router.push("/dashboard/my-submissions");
                 return;
             }
+
+            const { submission: sub, video } = res;
+
+            form.reset({
+                title: sub.title,
+                description: sub.description,
+                event_id: sub.event_id,
+                type: video?.type || "upload",
+                youtube_url: video?.youtube_url || "",
+                video_url: video?.video_url || "placeholder",
+            });
+            setLoading(false);
         }
         loadSubmission();
     }, [id, router, form]);

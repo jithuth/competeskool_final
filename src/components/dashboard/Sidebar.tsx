@@ -86,7 +86,7 @@ const navItems: NavItem[] = [
         title: "Submission Registry",
         href: "/dashboard/submissions",
         icon: Newspaper,
-        roles: ["super_admin", "school_admin", "teacher", "student", "judge"],
+        roles: ["super_admin"],
         category: "PARTICIPATION"
     },
     {

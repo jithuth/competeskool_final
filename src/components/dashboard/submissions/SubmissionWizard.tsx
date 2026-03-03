@@ -33,7 +33,7 @@ const STEPS = [
 
 // ─── Upload helpers ───────────────────────────────────────────────────────────
 
-const CHUNK_SIZE = 8 * 1024 * 1024; // 8 MB — safely under Next.js dev-mode body limit
+const CHUNK_SIZE = 1 * 1024 * 1024; // 1 MB — safely under Vercel's 4.5MB body limit
 
 
 /**

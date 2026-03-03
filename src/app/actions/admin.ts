@@ -563,6 +563,15 @@ export async function updateSchoolStatusAction(schoolId: string, status: 'approv
 
 export async function evaluateSubmissionAction(submissionId: string, score: number, feedback: string) {
     try {
+        const { account, databases } = await createSessionClient();
+        const user = await account.get();
+        if (!user) return { error: "Unauthorized" };
+
+        const profile = await databases.getDocument(APPWRITE_DATABASE_ID, "profiles", user.$id);
+        if (profile?.role !== "judge") {
+            return { error: "Only assigned judges can perform evaluations." };
+        }
+
         const adminAppwrite = getAppwriteAdmin();
         await adminAppwrite.databases.updateDocument(APPWRITE_DATABASE_ID, "submissions", submissionId, {
             score,
@@ -587,5 +596,34 @@ export async function deleteEventAction(id: string) {
         return { success: true };
     } catch (e: any) {
         return { error: e.message };
+    }
+}
+export async function getSubmissionForEditAction(submissionId: string) {
+    try {
+        const { account, databases } = await createSessionClient();
+        const user = await account.get();
+        if (!user) return { error: "Unauthorized" };
+
+        const sub = await databases.getDocument(APPWRITE_DATABASE_ID, "submissions", submissionId);
+
+        if (sub.student_id !== user.$id) {
+            return { error: "Unauthorized access to this submission" };
+        }
+
+        if (sub.status !== 'pending') {
+            return { error: "Only pending submissions can be edited" };
+        }
+
+        const videosRes = await databases.listDocuments(APPWRITE_DATABASE_ID, "submission_videos", [
+            Query.equal("submission_id", submissionId)
+        ]);
+
+        return {
+            success: true,
+            submission: JSON.parse(JSON.stringify(sub)),
+            video: videosRes.documents.length > 0 ? JSON.parse(JSON.stringify(videosRes.documents[0])) : null
+        };
+    } catch (e: any) {
+        return { error: e.message || "Failed to fetch submission" };
     }
 }

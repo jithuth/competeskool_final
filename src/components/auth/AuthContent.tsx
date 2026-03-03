@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { loginAction, registerAction } from "@/app/actions/auth";
+import { getApprovedSchoolsAction, getSchoolTeachersAction } from "@/app/actions/public";
 import { appwriteDatabases, APPWRITE_DATABASE_ID } from "@/lib/appwrite/client";
 import { Query } from "appwrite";
 import { Button } from "@/components/ui/button";
@@ -102,15 +103,10 @@ export function AuthContent({ siteSettings }: { siteSettings?: Record<string, st
 
     useEffect(() => {
         async function fetchSchools() {
-            try {
-                const response = await appwriteDatabases.listDocuments(APPWRITE_DATABASE_ID, "schools", [
-                    Query.equal("status", "approved")
-                ]);
-                setSchools(response.documents.map(s => ({
-                    id: s.$id,
-                    name: s.name
-                })));
-            } catch (e) { console.error(e); }
+            const res = await getApprovedSchoolsAction();
+            if (res.schools) {
+                setSchools(res.schools);
+            }
         }
         fetchSchools();
     }, []);
@@ -124,40 +120,15 @@ export function AuthContent({ siteSettings }: { siteSettings?: Record<string, st
         }
 
         async function fetchTeachers() {
-            try {
-                // 1. Fetch Teachers for this school
-                const teacherProfiles = await appwriteDatabases.listDocuments(APPWRITE_DATABASE_ID, "profiles", [
-                    Query.equal("school_id", selectedSchool),
-                    Query.equal("role", "teacher"),
-                    Query.equal("status", "approved")
-                ]);
-
-                // 2. We have their names, but we need their class_section from the 'teachers' collection
-                const resolvedTeachers: any[] = [];
-                for (let t of teacherProfiles.documents) {
-                    try {
-                        const tDetails = await appwriteDatabases.getDocument(APPWRITE_DATABASE_ID, "teachers", t.$id);
-                        resolvedTeachers.push({
-                            id: t.$id,
-                            full_name: t.full_name,
-                            grade: tDetails.class_section || "Unassigned"
-                        });
-                    } catch (e) {
-                        // Teacher profile details missing
-                    }
-                }
-
-                setAllTeachers(resolvedTeachers);
+            const res = await getSchoolTeachersAction(selectedSchool);
+            if (res.teachers) {
+                setAllTeachers(res.teachers);
                 const classes = Array.from(new Set(
-                    resolvedTeachers
+                    res.teachers
                         .map((t: any) => t.grade)
                         .filter(c => c !== "Unassigned")
                 )) as string[];
                 setAvailableClasses(classes);
-
-            } catch (error) {
-                console.error("Error fetching teachers:", error);
-                return;
             }
         }
 

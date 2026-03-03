@@ -210,7 +210,7 @@ export async function saveScoresAction(submissionId: string, scores: {
         if (!user) return { error: "Unauthorized" };
 
         const profile = await databases.getDocument(APPWRITE_DATABASE_ID, "profiles", user.$id);
-        if (profile?.role !== "judge" && profile?.role !== "super_admin") return { error: "Not a judge" };
+        if (profile?.role !== "judge") return { error: "Only assigned judges can perform evaluations." };
 
         const adminAppwrite = getAppwriteAdmin();
 
