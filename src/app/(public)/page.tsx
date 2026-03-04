@@ -51,7 +51,7 @@ export default async function HomePage() {
     // 3 upcoming for deadlines sidebar
     const upcomingEvents = filteredEvents.slice(0, 3);
 
-    const heroImage = settings?.home_hero_image || "/national_talent_search_poster_1771809515695.png";
+    const heroImage = settings?.home_hero_image || "https://images.unsplash.com/photo-1546410531-bb4caa6b424d?q=80&w=2071&auto=format&fit=crop";
 
     return (
         <div className="flex flex-col gap-24 pb-32 bg-background">
@@ -216,7 +216,7 @@ export default async function HomePage() {
                         </div>
 
                         <div className="flex flex-col sm:flex-row gap-4 justify-center pt-8">
-                            <Link href="/login?view=signup">
+                            <Link href="/register-school">
                                 <Button className="w-full sm:w-auto h-16 px-12 rounded-2xl bg-primary text-white hover:bg-primary/90 font-black uppercase tracking-[0.2em] text-xs shadow-xl shadow-primary/20 transition-all active:scale-95 group/btn border-2 border-transparent">
                                     Register School <ArrowUpRight className="ml-2 w-4 h-4 transition-transform group-hover/btn:-translate-y-1 group-hover/btn:translate-x-1" />
                                 </Button>

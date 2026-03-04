@@ -162,8 +162,14 @@ export default async function PublicLayout({
                         <div className="space-y-6">
                             <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Institutional</h4>
                             <ul className="space-y-3">
-                                {["About Organization", "Register School", "Institutional Gallery", "Teacher Recognition", "Success Stories"].map(l => (
-                                    <li key={l}><Link href="#" className="text-sm text-slate-500 hover:text-primary transition-colors font-medium">{l}</Link></li>
+                                {[
+                                    { name: "About Organization", href: "/about" },
+                                    { name: "Register School", href: "/register-school" },
+                                    { name: "Institutional Gallery", href: "/gallery" },
+                                    { name: "Teacher Recognition", href: "/teacher-awards" },
+                                    { name: "Success Stories", href: "/winners" }
+                                ].map(l => (
+                                    <li key={l.name}><Link href={l.href} className="text-sm text-slate-500 hover:text-primary transition-colors font-medium">{l.name}</Link></li>
                                 ))}
                             </ul>
                         </div>
@@ -172,8 +178,14 @@ export default async function PublicLayout({
                         <div className="space-y-6">
                             <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Resources</h4>
                             <ul className="space-y-3">
-                                {["Competition Rules", "Media Guidelines", "Privacy Policy", "Terms of Service", "Cookie Policy"].map(l => (
-                                    <li key={l}><Link href="#" className="text-sm text-slate-500 hover:text-primary transition-colors font-medium">{l}</Link></li>
+                                {[
+                                    { name: "Competition Rules", href: "/competitions" },
+                                    { name: "Latest News", href: "/news" },
+                                    { name: "Institutional Icon Story", href: "/icon-story" },
+                                    { name: "Rankings", href: "/ranking" },
+                                    { name: "Contact Desk", href: "/contact" }
+                                ].map(l => (
+                                    <li key={l.name}><Link href={l.href} className="text-sm text-slate-500 hover:text-primary transition-colors font-medium">{l.name}</Link></li>
                                 ))}
                             </ul>
                         </div>
