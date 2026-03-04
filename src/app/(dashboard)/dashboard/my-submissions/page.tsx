@@ -150,11 +150,28 @@ export default async function MySubmissionsPage() {
                 </div>
             )}
 
-            {availableEvents.length === 0 && (
+            {/* My Submissions Table Section */}
+            {submissions.length > 0 && (
+                <div className="space-y-6">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-600/10 flex items-center justify-center text-indigo-600">
+                            <Video className="w-6 h-6" />
+                        </div>
+                        <h2 className="text-2xl font-black font-outfit uppercase tracking-tight">Your Mission Logs</h2>
+                    </div>
+
+                    <SubmissionsTable
+                        submissions={submissions.map(s => ({ ...s, id: s.$id }))}
+                        role="student"
+                    />
+                </div>
+            )}
+
+            {availableEvents.length === 0 && submissions.length === 0 && (
                 <div className="py-24 text-center border-4 border-dashed rounded-[3rem] bg-slate-50/50">
                     <CheckCircle2 className="w-16 h-16 mx-auto mb-6 text-emerald-500/50" />
                     <h2 className="text-3xl font-black font-outfit uppercase tracking-tight text-slate-400">All Done!</h2>
-                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2">You've entered all available competitions.</p>
+                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2">No active events or submissions found.</p>
                 </div>
             )}
         </div>

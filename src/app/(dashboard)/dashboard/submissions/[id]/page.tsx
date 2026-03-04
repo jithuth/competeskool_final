@@ -9,9 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Query } from "node-appwrite";
+import { MediaPlayer } from "@/components/shared/MediaPlayer";
 
-export default async function SubmissionDetailPage({ params }: { params: { id: string } }) {
-    const { id } = params;
+export default async function SubmissionDetailPage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
 
     let user;
     try {
@@ -123,19 +124,8 @@ export default async function SubmissionDetailPage({ params }: { params: { id: s
                 <div className="lg:col-span-8 space-y-8">
                     <Card className="rounded-[2.5rem] overflow-hidden border-2 shadow-2xl shadow-slate-200/50">
                         <div className="aspect-video bg-black relative group">
-                            {video?.type === 'youtube' ? (
-                                <iframe
-                                    src={`https://www.youtube.com/embed/${video.youtube_url?.split('v=')[1]}`}
-                                    className="w-full h-full"
-                                    allowFullScreen
-                                />
-                            ) : video?.video_url ? (
-                                <video
-                                    src={video.video_url}
-                                    className="w-full h-full"
-                                    controls
-                                    poster={submission.events?.banner_url || ""}
-                                />
+                            {video ? (
+                                <MediaPlayer video={video} />
                             ) : (
                                 <div className="absolute inset-0 flex items-center justify-center text-white/50 flex-col gap-4">
                                     <Video className="w-16 h-16 opacity-20" />
