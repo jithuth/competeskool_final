@@ -46,9 +46,24 @@ export default async function PublicLayout({
 
     const siteTitle = settings?.site_title || "CompeteEdu";
     const siteLogo = settings?.site_logo;
+    const primaryColor = settings?.theme_primary_color || "#3b82f6";
+    const galleryEnabled = settings?.gallery_enabled !== "false";
 
     return (
         <div className="flex flex-col min-h-screen bg-background">
+            <style dangerouslySetInnerHTML={{
+                __html: `
+                :root {
+                    --primary: ${primaryColor} !important;
+                    --ring: ${primaryColor} !important;
+                }
+                .text-primary { color: ${primaryColor} !important; }
+                .bg-primary { background-color: ${primaryColor} !important; }
+                .border-primary { border-color: ${primaryColor} !important; }
+                .hover\\:text-primary:hover { color: ${primaryColor} !important; }
+                .hover\\:bg-primary:hover { background-color: ${primaryColor} !important; }
+            `}} />
+
             {/* Header */}
             <header className="w-full border-b bg-white/95 backdrop-blur-md border-slate-200 relative z-50 shadow-sm">
                 <div className="container mx-auto px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -72,7 +87,7 @@ export default async function PublicLayout({
                             { name: "Competitions", href: "/competitions" },
                             { name: "News", href: "/news" },
                             { name: "Winners", href: "/winners" },
-                            { name: "Gallery", href: "/gallery" },
+                            ...(galleryEnabled ? [{ name: "Gallery", href: "/gallery" }] : []),
                             { name: "Icon Story", href: "/icon-story" },
                             { name: "Contact", href: "/contact" },
                             { name: "Ranking", href: "/ranking" },

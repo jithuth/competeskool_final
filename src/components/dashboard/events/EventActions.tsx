@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/dialog";
 import { EventForm } from "./EventForm";
 
+import { BroadcastDialog } from "./BroadcastDialog";
+
 interface EventActionsProps {
     data: any;
 }
@@ -34,25 +36,13 @@ export function EventActions({ data }: EventActionsProps) {
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
+    const [broadcastOpen, setBroadcastOpen] = useState(false);
     const router = useRouter();
 
     const onShare = async () => {
         const url = `${window.location.origin}/competitions/${data.id}`;
         await navigator.clipboard.writeText(url);
         toast.success("Event link copied to clipboard!");
-    };
-
-    const onBulkEmail = async () => {
-        try {
-            setLoading(true);
-            const result = await sendBulkEventEmailAction(data.id);
-            if (result.error) throw new Error(result.error);
-            toast.success(`Broadcasting invitation to ${result.count} schools!`);
-        } catch (error: any) {
-            toast.error(error.message || "Failed to send bulk emails.");
-        } finally {
-            setLoading(false);
-        }
     };
 
     const onDelete = async () => {
@@ -147,11 +137,17 @@ export function EventActions({ data }: EventActionsProps) {
                 size="sm"
                 variant="outline"
                 disabled={loading}
-                onClick={onBulkEmail}
+                onClick={() => setBroadcastOpen(true)}
                 className="h-8 rounded-lg border-emerald-100 bg-emerald-50/50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 font-bold text-[10px] uppercase tracking-wider transition-all active:scale-95"
             >
                 {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Mail className="w-3.5 h-3.5 mr-1.5" />} Broadcast
             </Button>
+
+            <BroadcastDialog
+                event={data}
+                isOpen={broadcastOpen}
+                onClose={() => setBroadcastOpen(false)}
+            />
 
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>

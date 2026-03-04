@@ -23,6 +23,8 @@ export function SystemSettings({ settings }: SystemSettingsProps) {
     const [heroDesc, setHeroDesc] = useState(settings.home_hero_description || "");
     const [contactEmail, setContactEmail] = useState(settings.contact_email || "");
     const [footerCopy, setFooterCopy] = useState(settings.footer_copy || "");
+    const [themeColor, setThemeColor] = useState(settings.theme_primary_color || "#4F46E5");
+    const [galleryEnabled, setGalleryEnabled] = useState(settings.gallery_enabled !== "false");
 
     const [logoFile, setLogoFile] = useState<File | null>(null);
     const [logoPreview, setLogoPreview] = useState<string>(settings.site_logo || "");
@@ -56,7 +58,9 @@ export function SystemSettings({ settings }: SystemSettingsProps) {
                 home_hero_subtitle: heroSubtitle,
                 home_hero_description: heroDesc,
                 contact_email: contactEmail,
-                footer_copy: footerCopy
+                footer_copy: footerCopy,
+                theme_primary_color: themeColor,
+                gallery_enabled: String(galleryEnabled)
             });
 
             if (res.error) {
@@ -90,6 +94,34 @@ export function SystemSettings({ settings }: SystemSettingsProps) {
                                     placeholder="e.g. CompeteEdu India"
                                     className="h-12 rounded-xl border-2 font-bold px-4"
                                 />
+                            </div>
+
+                            <div className="space-y-4 pt-4">
+                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border-2 border-slate-100">
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-900">Brand Theme Color</p>
+                                        <p className="text-[10px] text-slate-400 font-medium">Primary accent color for the platform.</p>
+                                    </div>
+                                    <input
+                                        type="color"
+                                        value={themeColor}
+                                        onChange={(e) => setThemeColor(e.target.value)}
+                                        className="w-12 h-12 rounded-lg border-2 border-white shadow-sm cursor-pointer"
+                                    />
+                                </div>
+
+                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border-2 border-slate-100">
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-900">Public Gallery</p>
+                                        <p className="text-[10px] text-slate-400 font-medium">Toggle global visibility of the submissions gallery.</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setGalleryEnabled(!galleryEnabled)}
+                                        className={`w-12 h-6 rounded-full transition-all relative ${galleryEnabled ? 'bg-primary' : 'bg-slate-300'}`}
+                                    >
+                                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${galleryEnabled ? 'right-1' : 'left-1'}`} />
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>

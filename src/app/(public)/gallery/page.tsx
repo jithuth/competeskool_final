@@ -2,11 +2,36 @@ import { getAppwriteAdmin } from "@/lib/appwrite/server";
 import { APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
 import { Query } from "node-appwrite";
 import { Badge } from "@/components/ui/badge";
-import { ImageIcon, Maximize2 } from "lucide-react";
+import { ImageIcon, Maximize2, ShieldAlert } from "lucide-react";
+import { getSiteSettings } from "@/lib/cms";
 
 export default async function GalleryPage() {
-    const adminAppwrite = getAppwriteAdmin();
+    const settings = await getSiteSettings();
+    const isEnabled = settings?.gallery_enabled !== "false";
 
+    if (!isEnabled) {
+        return (
+            <div className="bg-[#080B1A] min-h-screen flex items-center justify-center p-6 text-center">
+                <div className="max-w-xl space-y-8 animate-in fade-in zoom-in duration-700">
+                    <div className="w-24 h-24 rounded-[2rem] bg-rose-500/10 border-2 border-rose-500/20 flex items-center justify-center text-rose-500 mx-auto shadow-2xl shadow-rose-500/10">
+                        <ShieldAlert className="w-12 h-12" />
+                    </div>
+                    <div className="space-y-4">
+                        <h2 className="text-4xl font-black font-outfit uppercase tracking-tighter text-white leading-none">
+                            Institutional Gallery <br />
+                            <span className="text-rose-500 italic">Restricted</span>
+                        </h2>
+                        <p className="text-slate-400 font-medium text-lg leading-relaxed">
+                            Access to the public visual archives has been suspended by the super administrative committee.
+                            Please contact institutional support for verified media inquiries.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    const adminAppwrite = getAppwriteAdmin();
     let galleryItems: any[] = [];
     try {
         const res = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "gallery", [

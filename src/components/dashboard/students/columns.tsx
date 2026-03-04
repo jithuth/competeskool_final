@@ -14,6 +14,9 @@ export type StudentColumn = {
     school_name?: string;
     teacher_name?: string;
     created_at: string;
+    phone?: string;
+    father_name?: string;
+    mother_name?: string;
 };
 
 export const columns: ColumnDef<StudentColumn>[] = [

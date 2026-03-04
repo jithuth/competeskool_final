@@ -83,7 +83,10 @@ export default async function StudentsPage() {
                 school_name: schoolName,
                 teacher_name: teacherProfile?.full_name || "N/A",
                 grade_level: studentInfo?.grade_level || "N/A",
-                teacher_id: studentInfo?.teacher_id
+                teacher_id: studentInfo?.teacher_id,
+                phone: studentInfo?.phone || "N/A",
+                father_name: studentInfo?.father_name || "N/A",
+                mother_name: studentInfo?.mother_name || "N/A",
             };
         })
     );

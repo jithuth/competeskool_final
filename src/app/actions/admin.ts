@@ -140,9 +140,9 @@ export async function saveEventAction(data: any) {
     }
 }
 
-export async function sendBulkEventEmailAction(eventId: string) {
+export async function sendBulkEventEmailAction(eventId: string, schoolIds?: string[]) {
     try {
-        const { account, databases } = await createSessionClient();
+        const { account } = await createSessionClient();
         const user = await account.get();
         if (!user) return { error: "Unauthorized" };
 
@@ -152,14 +152,19 @@ export async function sendBulkEventEmailAction(eventId: string) {
         const event = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, 'events', eventId);
         if (!event) return { error: "Event not found" };
 
-        // 2. Get All School Admin Emails
-        const resAdmins = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, 'profiles', [
-            Query.equal('role', 'school_admin')
-        ]);
+        // 2. Get Targeted School Admin Emails
+        let queries = [Query.equal('role', 'school_admin')];
+        if (schoolIds && schoolIds.length > 0) {
+            queries.push(Query.equal('school_id', schoolIds));
+        }
+
+        const resAdmins = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, 'profiles', queries);
         const schoolAdmins = resAdmins.documents;
 
         // 3. Simulate sending emails
         console.log(`[BULK EMAIL] Initializing broadcast for: ${event.title}`);
+        console.log(`[TARGET] ${schoolIds ? `Selected ${schoolIds.length} schools` : "All schools"}`);
+
         schoolAdmins.forEach(admin => {
             console.log(`[SIMULATED] Sending invitation to ${admin.full_name} (${admin.email}) for event: ${event.title}`);
         });

@@ -51,7 +51,34 @@ export default async function HomePage() {
     // 3 upcoming for deadlines sidebar
     const upcomingEvents = filteredEvents.slice(0, 3);
 
+    // Fetch winners
+    let recentWinners: any[] = [];
+    try {
+        const winRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "badges", [
+            Query.equal("is_public", true),
+            Query.orderDesc("issued_at"),
+            Query.limit(6)
+        ]);
+        recentWinners = JSON.parse(JSON.stringify(winRes.documents));
+    } catch (e) { }
+
+    // Fetch News with views (or latest)
+    let featuredNews: any[] = [];
+    try {
+        const newsRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "news", [
+            Query.orderDesc("published_at"),
+            Query.limit(3)
+        ]);
+        featuredNews = JSON.parse(JSON.stringify(newsRes.documents));
+    } catch (e) { }
+
     const heroImage = settings?.home_hero_image || "https://images.unsplash.com/photo-1546410531-bb4caa6b424d?q=80&w=2071&auto=format&fit=crop";
+
+    const TIER_CONFIG: Record<string, any> = {
+        gold: { label: "Gold", emoji: "🥇", color: "text-amber-400", bg: "bg-amber-400/10" },
+        silver: { label: "Silver", emoji: "🥈", color: "text-slate-300", bg: "bg-slate-300/10" },
+        bronze: { label: "Bronze", emoji: "🥉", color: "text-orange-400", bg: "bg-orange-400/10" },
+    };
 
     return (
         <div className="flex flex-col gap-24 pb-32 bg-background">
@@ -115,6 +142,97 @@ export default async function HomePage() {
                     </div>
                 </div>
             </section >
+
+            {/* --- RECENT WINNERS SECTION --- */}
+            {recentWinners.length > 0 && (
+                <section className="container mx-auto px-6 space-y-12">
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                        <div className="space-y-4">
+                            <div className="w-12 h-1 rounded-full bg-amber-500" />
+                            <h2 className="text-4xl md:text-5xl font-black font-outfit text-slate-900 uppercase tracking-tighter leading-none">
+                                Wall of <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-500 to-yellow-400 italic">Excellence</span>
+                            </h2>
+                            <p className="text-slate-500 font-medium max-w-xl">Celebrating the latest achievers who have showcased exceptional talent across our national framework.</p>
+                        </div>
+                        <Link href="/winners">
+                            <Button variant="ghost" className="font-black uppercase tracking-widest text-[10px] gap-2 group">
+                                View Full Gallery <ArrowUpRight className="w-4 h-4 transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
+                            </Button>
+                        </Link>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {recentWinners.map((winner: any) => {
+                            const cfg = TIER_CONFIG[winner.tier] || TIER_CONFIG.gold;
+                            return (
+                                <div key={winner.$id} className="p-6 rounded-[2rem] bg-white border-2 border-slate-100 hover:border-amber-200 hover:shadow-xl transition-all group overflow-hidden relative">
+                                    <div className={`absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity`}>
+                                        <Trophy className="w-16 h-16 text-slate-900" />
+                                    </div>
+                                    <div className="flex items-center gap-4 mb-4">
+                                        <div className={`w-10 h-10 rounded-xl ${cfg.bg} ${cfg.color} flex items-center justify-center font-black text-lg`}>
+                                            {cfg.emoji}
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-black text-slate-900 line-clamp-1">{winner.student_name}</p>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest line-clamp-1">{winner.school_name}</p>
+                                        </div>
+                                    </div>
+                                    <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 line-clamp-1 max-w-[70%]">{winner.event_name}</p>
+                                        <span className={`text-[10px] font-black uppercase tracking-widest ${cfg.color}`}>{cfg.label}</span>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </section>
+            )}
+
+            {/* --- FEATURED NEWS SECTION --- */}
+            {featuredNews.length > 0 && (
+                <section className="bg-slate-950 py-24 text-white">
+                    <div className="container mx-auto px-6 space-y-16">
+                        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-white/10 pb-12">
+                            <div className="space-y-4">
+                                <div className="w-12 h-1 rounded-full bg-primary" />
+                                <h2 className="text-4xl md:text-5xl font-black font-outfit uppercase tracking-tighter leading-none">
+                                    Featured <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-indigo-400 italic">Insights</span>
+                                </h2>
+                                <p className="text-slate-400 font-medium max-w-xl">Deep dives into the latest events, innovations, and community stories.</p>
+                            </div>
+                            <Link href="/news">
+                                <Button variant="outline" className="border-white/10 hover:bg-white/5 font-black uppercase tracking-widest text-[10px] gap-2 rounded-xl">
+                                    Explore All News <ArrowUpRight className="w-4 h-4" />
+                                </Button>
+                            </Link>
+                        </div>
+
+                        <div className="grid md:grid-cols-3 gap-8">
+                            {featuredNews.map((news: any) => (
+                                <Link key={news.$id} href={`/news/${news.$id}`} className="group space-y-6">
+                                    <div className="aspect-[16/10] rounded-[2.5rem] bg-slate-900 border border-white/5 overflow-hidden relative">
+                                        {news.image_url ? (
+                                            <img src={news.image_url} alt={news.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80 group-hover:opacity-100" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center">
+                                                <ScrollText className="w-12 h-12 text-slate-800" />
+                                            </div>
+                                        )}
+                                        <div className="absolute top-6 left-6">
+                                            <span className="bg-primary/20 backdrop-blur-md text-primary border border-primary/30 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest">Featured</span>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-3 px-2">
+                                        <h3 className="text-2xl font-black font-outfit uppercase tracking-tight group-hover:text-primary transition-colors line-clamp-2 leading-tight">{news.title}</h3>
+                                        <p className="text-slate-400 text-sm font-medium line-clamp-2 leading-relaxed opacity-70 group-hover:opacity-100 transition-opacity">{news.content}</p>
+                                    </div>
+                                </Link>
+                            ))}
+                        </div>
+                    </div>
+                </section>
+            )}
 
             {/* --- STATS SECTION (Premium Row) --- */}
             < section className="container mx-auto px-6" >
