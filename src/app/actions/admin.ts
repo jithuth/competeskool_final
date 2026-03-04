@@ -33,7 +33,7 @@ export async function uploadFileAction(formData: FormData) {
         );
 
         // Construct the public view URL directly - getFileView returns ArrayBuffer (binary), not a URL
-        const publicUrl = `${APPWRITE_ENDPOINT}/storage/buckets/${APPWRITE_BUCKET_ID}/files/${fileId}/view?project=${APPWRITE_PROJECT_ID}`;
+        const publicUrl = `${APPWRITE_ENDPOINT}/storage/buckets/${APPWRITE_BUCKET_ID}/files/${fileId}/view?project=${APPWRITE_PROJECT_ID}&name=${encodeURIComponent(file.name)}`;
 
         return {
             success: true,

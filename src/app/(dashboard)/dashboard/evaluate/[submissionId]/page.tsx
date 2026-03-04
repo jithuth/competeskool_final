@@ -122,7 +122,7 @@ export default async function EvaluateSubmissionPage({ params }: { params: Promi
                         {videos.length > 0 ? (
                             <div className="space-y-3">
                                 {videos.map((v: any) => (
-                                    <MediaPlayer key={v.$id} video={v} />
+                                    <MediaPlayer key={v.$id} video={v} poster={event.banner_url || ""} />
                                 ))}
                             </div>
                         ) : (

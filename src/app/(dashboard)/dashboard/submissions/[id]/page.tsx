@@ -123,11 +123,11 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
                 {/* Left: Media & Description */}
                 <div className="lg:col-span-8 space-y-8">
                     <Card className="rounded-[2.5rem] overflow-hidden border-2 shadow-2xl shadow-slate-200/50">
-                        <div className="aspect-video bg-black relative group">
+                        <div className="bg-black relative group">
                             {video ? (
-                                <MediaPlayer video={video} />
+                                <MediaPlayer video={video} poster={submission.events?.banner_url || ""} />
                             ) : (
-                                <div className="absolute inset-0 flex items-center justify-center text-white/50 flex-col gap-4">
+                                <div className="aspect-video flex items-center justify-center text-white/50 flex-col gap-4">
                                     <Video className="w-16 h-16 opacity-20" />
                                     <p className="font-bold uppercase tracking-widest text-xs">Media content unavailable</p>
                                 </div>
