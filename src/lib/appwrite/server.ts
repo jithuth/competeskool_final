@@ -5,15 +5,15 @@ import { Client, Storage, Databases, Users } from 'node-appwrite';
  */
 export function getAppwriteServerClient() {
     const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1";
-    const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-    const apiKey = process.env.APPWRITE_API_KEY;
+    const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || "";
+    const apiKey = process.env.APPWRITE_API_KEY || "";
 
     if (!projectId) {
-        throw new Error("Missing NEXT_PUBLIC_APPWRITE_PROJECT_ID environment variable. The X-Appwrite-Project header is required for all requests.");
+        console.warn("⚠️ Missing NEXT_PUBLIC_APPWRITE_PROJECT_ID environment variable.");
     }
 
     if (!apiKey) {
-        throw new Error("Missing APPWRITE_API_KEY environment variable. The X-Appwrite-Key header is required for server-side administration.");
+        console.error("⚠️ Missing APPWRITE_API_KEY environment variable. Server-side administration will fail.");
     }
 
     return new Client()

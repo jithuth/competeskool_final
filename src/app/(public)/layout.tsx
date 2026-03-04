@@ -6,6 +6,8 @@ import { Metadata } from "next";
 import { createSessionClient, APPWRITE_DATABASE_ID } from "@/lib/appwrite/ssr";
 import { redirect } from "next/navigation";
 
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata(): Promise<Metadata> {
     const seo = await getSeoConfig("/");
     if (!seo) return { title: "CompeteEdu India" };

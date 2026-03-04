@@ -9,6 +9,8 @@ import Link from "next/link";
 import { NotificationBell } from "@/components/dashboard/NotificationBell";
 import { getSiteSettings } from "@/lib/cms";
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardLayout({
     children,
 }: {
