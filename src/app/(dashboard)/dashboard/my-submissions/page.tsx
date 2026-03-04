@@ -37,11 +37,13 @@ export default async function MySubmissionsPage() {
             Query.orderDesc("$createdAt")
         ]);
 
+        const subResPlain = JSON.parse(JSON.stringify(subRes.documents));
         submissions = await Promise.all(
-            subRes.documents.map(async (doc: any) => {
+            subResPlain.map(async (doc: any) => {
                 let ev = null;
                 try {
-                    ev = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "events", doc.event_id);
+                    const evDoc = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "events", doc.event_id);
+                    ev = JSON.parse(JSON.stringify(evDoc));
                 } catch (e) { }
 
                 let vids: any[] = [];
@@ -49,7 +51,7 @@ export default async function MySubmissionsPage() {
                     const vidRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "submission_videos", [
                         Query.equal("submission_id", doc.$id)
                     ]);
-                    vids = vidRes.documents;
+                    vids = JSON.parse(JSON.stringify(vidRes.documents));
                 } catch (e) { }
 
                 return {

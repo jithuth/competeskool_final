@@ -33,7 +33,8 @@ export default async function EvaluateSubmissionPage({ params }: { params: Promi
     // Get submission details
     let submission: any = null;
     try {
-        submission = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "submissions", submissionId);
+        const rawSub = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "submissions", submissionId);
+        submission = JSON.parse(JSON.stringify(rawSub));
     } catch (e) {
         notFound();
     }
@@ -46,14 +47,17 @@ export default async function EvaluateSubmissionPage({ params }: { params: Promi
     let videos: any[] = [];
 
     try {
-        event = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "events", submission.event_id);
+        const ev = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "events", submission.event_id);
+        event = JSON.parse(JSON.stringify(ev));
     } catch (e) { }
 
     try {
-        student = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", submission.student_id);
+        const std = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", submission.student_id);
+        student = JSON.parse(JSON.stringify(std));
         if (student.school_id) {
             try {
-                student.schools = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "schools", student.school_id);
+                const sch = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "schools", student.school_id);
+                student.schools = JSON.parse(JSON.stringify(sch));
             } catch (e) { }
         }
     } catch (e) { }

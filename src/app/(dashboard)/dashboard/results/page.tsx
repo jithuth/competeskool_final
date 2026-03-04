@@ -60,17 +60,19 @@ export default async function ResultsPage() {
             Query.limit(50)
         ]);
 
-        topResults = await Promise.all(
-            topRes.documents.map(async (res: any) => {
+        const topResDocs = topRes.documents;
+        const resultsRaw = await Promise.all(
+            topResDocs.map(async (res: any) => {
                 let p = null;
                 let ev = null;
 
                 try {
-                    p = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", res.student_id);
+                    const profileData = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", res.student_id);
+                    p = JSON.parse(JSON.stringify(profileData));
                     if (p && p.school_id) {
                         try {
                             const s = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "schools", p.school_id);
-                            p.schools = s;
+                            p.schools = JSON.parse(JSON.stringify(s));
                         } catch (e) { }
                     }
                 } catch (e) { }
@@ -79,7 +81,8 @@ export default async function ResultsPage() {
                 try {
                     const sub = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "submissions", res.submission_id);
                     if (sub) {
-                        ev = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "events", sub.event_id);
+                        const eventData = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "events", sub.event_id);
+                        ev = JSON.parse(JSON.stringify(eventData));
                     }
                 } catch (e) { }
 
@@ -91,6 +94,7 @@ export default async function ResultsPage() {
                 };
             })
         );
+        topResults = JSON.parse(JSON.stringify(resultsRaw));
     } catch (e) { }
 
     // Badge stats

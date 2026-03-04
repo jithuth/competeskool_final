@@ -37,30 +37,32 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
 
     let submission: any = null;
     try {
-        submission = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "submissions", id);
+        const rawSub = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "submissions", id);
+        submission = JSON.parse(JSON.stringify(rawSub));
 
         // Fetch relations
         try {
             const ev = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "events", submission.event_id);
-            submission.events = ev;
+            submission.events = JSON.parse(JSON.stringify(ev));
         } catch (e) { }
 
         try {
             const prf = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "profiles", submission.student_id);
-            if (prf.school_id) {
+            const plainPrf = JSON.parse(JSON.stringify(prf));
+            if (plainPrf.school_id) {
                 try {
-                    const sch = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "schools", prf.school_id);
-                    prf.schools = sch;
+                    const sch = await adminAppwrite.databases.getDocument(APPWRITE_DATABASE_ID, "schools", plainPrf.school_id);
+                    plainPrf.schools = JSON.parse(JSON.stringify(sch));
                 } catch (e) { }
             }
-            submission.profiles = prf;
+            submission.profiles = plainPrf;
         } catch (e) { }
 
         try {
             const videosRes = await adminAppwrite.databases.listDocuments(APPWRITE_DATABASE_ID, "submission_videos", [
                 Query.equal("submission_id", submission.$id)
             ]);
-            submission.submission_videos = videosRes.documents;
+            submission.submission_videos = JSON.parse(JSON.stringify(videosRes.documents));
         } catch (e) { }
 
     } catch (e) {

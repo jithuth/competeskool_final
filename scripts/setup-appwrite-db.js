@@ -156,6 +156,7 @@ async function setupSchema() {
     await safeCreateAttribute(() => databases.createStringAttribute(DB_ID, "submission_videos", "submission_id", 36, true));
     await safeCreateAttribute(() => databases.createUrlAttribute(DB_ID, "submission_videos", "video_url", false));
     await safeCreateAttribute(() => databases.createUrlAttribute(DB_ID, "submission_videos", "youtube_url", false));
+    await safeCreateAttribute(() => databases.createUrlAttribute(DB_ID, "submission_videos", "vimeo_url", false));
     await safeCreateAttribute(() => databases.createStringAttribute(DB_ID, "submission_videos", "storage_path", 2000, false));
     await safeCreateAttribute(() => databases.createStringAttribute(DB_ID, "submission_videos", "type", 50, false));
     await safeCreateAttribute(() => databases.createDatetimeAttribute(DB_ID, "submission_videos", "created_at", false));
