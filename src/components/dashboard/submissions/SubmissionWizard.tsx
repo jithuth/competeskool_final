@@ -182,7 +182,7 @@ export function SubmissionWizard({ events, initialEventId }: { events: any[]; in
 
     useEffect(() => {
         if (initialEventId) {
-            const event = events.find(e => e.id === initialEventId);
+            const event = events.find(e => e.$id === initialEventId);
             if (event) setSelectedEvent(event);
         }
     }, [initialEventId, events]);
@@ -393,7 +393,7 @@ export function SubmissionWizard({ events, initialEventId }: { events: any[]; in
                                             <Select
                                                 onValueChange={(val) => {
                                                     field.onChange(val);
-                                                    const event = events.find(e => e.id === val);
+                                                    const event = events.find(e => e.$id === val);
                                                     setSelectedEvent(event);
                                                 }}
                                                 defaultValue={field.value}
@@ -405,7 +405,7 @@ export function SubmissionWizard({ events, initialEventId }: { events: any[]; in
                                                 </FormControl>
                                                 <SelectContent className="rounded-xl border-2">
                                                     {events.map((event) => (
-                                                        <SelectItem key={event.id} value={event.id} className="py-2 font-bold text-slate-700">
+                                                        <SelectItem key={event.$id} value={event.$id} className="py-2 font-bold text-slate-700">
                                                             {event.title} {event.is_private ? "🔒" : ""}
                                                         </SelectItem>
                                                     ))}

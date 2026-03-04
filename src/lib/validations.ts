@@ -6,9 +6,9 @@ export const studentSchema = z.object({
     phone: z.string().min(10, "Phone number must be at least 10 characters"),
     father_name: z.string().min(2, "Father's name is required"),
     mother_name: z.string().min(2, "Mother's name is required"),
-    school_id: z.string().uuid("Please select a school"),
+    school_id: z.string().min(1, "Please select a school"),
     grade_level: z.string().min(1, "Grade level is required"),
-    teacher_id: z.string().uuid("Please select a teacher"),
+    teacher_id: z.string().min(1, "Please select a teacher"),
 });
 
 export type StudentFormValues = z.infer<typeof studentSchema>;
@@ -30,19 +30,11 @@ export type EventFormValues = z.infer<typeof eventSchema>;
 export const submissionSchema = z.object({
     title: z.string().min(3, "Title is required"),
     description: z.string().min(10, "Description is required"),
-    event_id: z.string().uuid(),
+    event_id: z.string().min(1),
     type: z.enum(["upload", "youtube", "vimeo"]),
     video_url: z.string().optional(),
     youtube_url: z.string().url().optional().or(z.literal("")),
     vimeo_url: z.string().url().optional().or(z.literal("")),
-}).refine((data) => {
-    if (data.type === "youtube" && !data.youtube_url) return false;
-    if (data.type === "vimeo" && !data.vimeo_url) return false;
-    if (data.type === "upload" && !data.video_url) return false;
-    return true;
-}, {
-    message: "Media source is required",
-    path: ["video_url"],
 });
 
 export type SubmissionFormValues = z.infer<typeof submissionSchema>;

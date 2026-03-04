@@ -115,7 +115,7 @@ export function SubmissionForm({ events }: { events: any[] }) {
                                 </FormControl>
                                 <SelectContent>
                                     {events.map((event) => (
-                                        <SelectItem key={event.id} value={event.id}>{event.title}</SelectItem>
+                                        <SelectItem key={event.$id} value={event.$id}>{event.title}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
