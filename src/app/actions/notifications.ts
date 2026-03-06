@@ -59,11 +59,12 @@ export async function getNotificationsAction() {
                     eventTitle = event.title || eventTitle;
                 } catch (e) { }
             }
-            notifications.push({
+            notifications.push(JSON.parse(JSON.stringify({
                 ...doc,
+                id: doc.$id,
                 created_at: doc.$createdAt,
                 events: { title: eventTitle }
-            });
+            })));
         }
 
         return notifications;

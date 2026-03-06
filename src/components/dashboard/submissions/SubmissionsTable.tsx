@@ -105,7 +105,7 @@ export function SubmissionsTable({ submissions, role }: { submissions: any[], ro
                                             </div>
                                             <div className="space-y-0.5">
                                                 <p className="font-bold text-slate-700 text-sm whitespace-nowrap">{sub.profiles?.full_name}</p>
-                                                <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest leading-none">ID: {sub.student_id.slice(0, 8)}</p>
+                                                <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest leading-none">ID: {sub.student_id ? sub.student_id.slice(0, 8) : "N/A"}</p>
                                             </div>
                                         </div>
                                     </TableCell>
@@ -125,7 +125,7 @@ export function SubmissionsTable({ submissions, role }: { submissions: any[], ro
                                         </div>
                                         <div className="flex items-center gap-1 text-[9px] text-slate-400 font-bold ml-1">
                                             <Calendar className="w-3 h-3" />
-                                            {format(new Date(sub.created_at), "MMM d, yyyy")}
+                                            {sub.created_at ? format(new Date(sub.created_at), "MMM d, yyyy") : "Date Unknown"}
                                         </div>
                                     </div>
                                 </TableCell>

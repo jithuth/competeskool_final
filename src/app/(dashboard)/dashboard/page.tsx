@@ -39,13 +39,18 @@ export default async function DashboardPage() {
     }
 
     // Fetch user profile for role and name
-    const profileRaw = await databases.getDocument(APPWRITE_DATABASE_ID, "profiles", user.$id);
-    const profile = JSON.parse(JSON.stringify(profileRaw));
-    if (profile.school_id) {
-        try {
-            const school = await databases.getDocument(APPWRITE_DATABASE_ID, "schools", profile.school_id);
-            profile.schools = school;
-        } catch (e) { }
+    let profile: any = null;
+    try {
+        const profileRaw = await databases.getDocument(APPWRITE_DATABASE_ID, "profiles", user.$id);
+        profile = JSON.parse(JSON.stringify(profileRaw));
+        if (profile.school_id) {
+            try {
+                const schoolRaw = await databases.getDocument(APPWRITE_DATABASE_ID, "schools", profile.school_id);
+                profile.schools = JSON.parse(JSON.stringify(schoolRaw));
+            } catch (e) { }
+        }
+    } catch (err) {
+        console.error("Dashboard Profile Fetch Error:", err);
     }
 
     // Fetch stats based on role
@@ -179,10 +184,12 @@ export default async function DashboardPage() {
                 Query.equal('status', 'not_started'), // Appwrite DB has 'status' not 'results_status'
                 Query.orderAsc("end_date")
             ]);
-            eventsNeedingAction = res.documents.filter((e: any) => e.end_date < now).map((e: any) => ({
+            const rawDocs = res.documents;
+            eventsNeedingAction = JSON.parse(JSON.stringify(rawDocs.filter((e: any) => e.end_date < now).map((e: any) => ({
                 ...e,
-                daysOverdue: Math.floor((Date.now() - new Date(e.end_date).getTime()) / (1000 * 60 * 60 * 24)),
-            }));
+                id: e.$id,
+                daysOverdue: Math.floor((Date.now() - new Date(e.end_date || 0).getTime()) / (1000 * 60 * 60 * 24)),
+            }))));
         } catch (e) { }
     }
 

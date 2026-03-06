@@ -14,6 +14,7 @@ import {
 import { getNotificationsAction } from "@/app/actions/notifications";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 export function NotificationBell() {
     const [notifications, setNotifications] = useState<any[]>([]);
@@ -78,7 +79,7 @@ export function NotificationBell() {
                                 </p>
                                 <div className="flex items-center justify-between w-full pl-4 mt-1">
                                     <span className="text-[9px] font-bold text-slate-300 uppercase">
-                                        {format(new Date(n.created_at), "HH:mm, dd MMM")}
+                                        {n.created_at && format(new Date(n.created_at), "HH:mm, dd MMM")}
                                     </span>
                                     {n.events?.title && (
                                         <Badge variant="outline" className="text-[8px] font-black uppercase tracking-tighter border-slate-100 py-0 leading-none h-4">
@@ -100,4 +101,3 @@ export function NotificationBell() {
     );
 }
 
-const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
